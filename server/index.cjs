@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const uuidv4 = () => crypto.randomUUID();
+const deterministicId = (str) => crypto.createHash('md5').update(str).digest('hex');
 const path = require('path');
 const store = require('./store.cjs');
 const { encrypt, decrypt } = require('./crypto.cjs');
@@ -47,10 +48,11 @@ function requireSuperadmin(req, res, next) {
 try {
   (function initSuperadmin() {
     const users = store.read('users');
+    const adminUsername = process.env.SUPERADMIN_USERNAME || 'admin';
     if (!users.find(u => u.role === 'superadmin')) {
       users.push({
-        id: uuidv4(),
-        username: process.env.SUPERADMIN_USERNAME || 'admin',
+        id: deterministicId('superadmin-' + adminUsername),
+        username: adminUsername,
         passwordHash: bcrypt.hashSync(process.env.SUPERADMIN_PASSWORD || 'admin123', 10),
         role: 'superadmin',
         createdAt: new Date().toISOString()
@@ -92,7 +94,7 @@ try {
     ];
     defaults.forEach(([clientName, username, password]) => {
       creds.push({
-        id: uuidv4(), clientName,
+        id: deterministicId('cred-' + clientName), clientName,
         username: encrypt(username), password: encrypt(password),
         createdAt: new Date().toISOString()
       });
@@ -146,7 +148,7 @@ try {
     let added = false;
     defaults.forEach(def => {
       if (!tools.find(t => t.name === def.name)) {
-        tools.push({ id: uuidv4(), ...def, createdAt: new Date().toISOString() });
+        tools.push({ id: deterministicId('tool-' + def.name), ...def, createdAt: new Date().toISOString() });
         added = true;
       }
     });
