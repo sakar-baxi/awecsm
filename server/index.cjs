@@ -217,7 +217,7 @@ app.delete('/api/users/:id', authenticate, requireSuperadmin, async (req, res) =
 // ── CREDENTIALS ──────────────────────────────────────────────────────
 
 app.get('/api/credentials', authenticate, async (req, res) => {
-  const { rows: creds } = await store.query('SELECT id, client_name, created_at FROM credentials');
+  const { rows: creds } = await store.query('SELECT id, client_name AS "clientName", created_at AS "createdAt" FROM credentials ORDER BY client_name ASC');
   res.json(creds);
 });
 
