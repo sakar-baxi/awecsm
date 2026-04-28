@@ -11,8 +11,12 @@ const { encrypt, decrypt } = require('./crypto.cjs');
 const app = express();
 app.use(express.json());
 
-const JWT_SECRET = process.env.JWT_SECRET || 'default-secret';
+const JWT_SECRET = process.env.JWT_SECRET || 'tartan-renewals-fallback-secret-2026';
 const PORT = process.env.PORT || 3001;
+
+if (!process.env.JWT_SECRET || !process.env.ENCRYPTION_KEY) {
+  console.warn('WARNING: JWT_SECRET or ENCRYPTION_KEY not set. Using defaults (not secure for production).');
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
