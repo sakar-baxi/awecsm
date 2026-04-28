@@ -1,13 +1,19 @@
 {
   "version": 2,
-  "rewrites": [
+  "functions": {
+    "api/index.cjs": {
+      "memory": 1024,
+      "maxDuration": 10
+    }
+  },
+  "routes": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api/index.cjs"
+      "src": "/api/(.*)",
+      "dest": "/api/index.cjs"
     },
     {
-      "source": "/(.*)",
-      "destination": "/"
+      "src": "/(.*)",
+      "dest": "/$1"
     }
   ]
 }
