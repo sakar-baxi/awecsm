@@ -44,68 +44,73 @@ function requireSuperadmin(req, res, next) {
 
 // ── Init superadmin ──────────────────────────────────────────────────
 
-(function initSuperadmin() {
-  const users = store.read('users');
-  if (!users.find(u => u.role === 'superadmin')) {
-    users.push({
-      id: uuidv4(),
-      username: process.env.SUPERADMIN_USERNAME || 'admin',
-      passwordHash: bcrypt.hashSync(process.env.SUPERADMIN_PASSWORD || 'admin123', 10),
-      role: 'superadmin',
-      createdAt: new Date().toISOString()
-    });
-    store.write('users', users);
-    console.log('Superadmin account created.');
-  }
-})();
+try {
+  (function initSuperadmin() {
+    const users = store.read('users');
+    if (!users.find(u => u.role === 'superadmin')) {
+      users.push({
+        id: uuidv4(),
+        username: process.env.SUPERADMIN_USERNAME || 'admin',
+        passwordHash: bcrypt.hashSync(process.env.SUPERADMIN_PASSWORD || 'admin123', 10),
+        role: 'superadmin',
+        createdAt: new Date().toISOString()
+      });
+      store.write('users', users);
+      console.log('Superadmin account created.');
+    }
+  })();
+} catch (e) { console.error('initSuperadmin failed:', e); }
 
 // ── Init default credentials from CSV ────────────────────────────────
 
-(function initCredentials() {
-  const creds = store.read('credentials');
-  if (creds.length > 0) return;
-  const defaults = [
-    ["Prosperr.io","ankur@prosperr.io","4IOISi7E"],
-    ["MMT","sakar+mybizfd5ece","2lrMvXlT"],
-    ["Bharatsure","risvan@bharatsure.com","Tartan@2025"],
-    ["Tifin India","siddharth@tifin.com","5llxWRVv"],
-    ["HDFC Bank Baas","chirag@tartanhq.com","DIADHfRa"],
-    ["Plum Benefits","PlumBenefitsTesting","eU59b851"],
-    ["HDFC Pension","akshaya+sriram@tartanhq.com","uBhDNqNH"],
-    ["Acko","ankur+acko@tartanhq.com","Acko-tartan@2025"],
-    ["Pensionbox","developer@pensionbox.in","CNPS@pensionbox"],
-    ["Policynation","jayakumar.g@policynation.com","Policynation-tartanHQ@2025"],
-    ["Loop","prashant.prabhakar@loophealth.com","oVixirBU"],
-    ["Happay by MMT","MyBiz_API_User","API_User@my_biz"],
-    ["BenefitWise (Earnest)","koushik.puppala@earnestdata-analytics.in","benefitwise-tartanHQ@2025"],
-    ["Ekincare","ankur+ekinUAT@tartanhq.com","ekin-tartan@2025"],
-    ["Tripjack","ankur+tripjackf8bdeb","tripjack-sync@2025"],
-    ["Tripare","kaushal42c836","Tripare@2026"],
-    ["Tifin USA","shoaib.haroon6eca9c","h123456789@H"],
-    ["TravelPlus","ankur+travelpluspoc@tartanhq.com","travelplus-tartan@2025"],
-    ["GoPrimo","amar7e8bc6","goprimo@2026"],
-    ["Ungender","ankur+getconductd51518","getconduct-tartan@2025"],
-    ["Ziptrip","ankur+ziptrrippoc74453e","ziptrrip-sync@2025"]
-  ];
-  defaults.forEach(([clientName, username, password]) => {
-    creds.push({
-      id: uuidv4(), clientName,
-      username: encrypt(username), password: encrypt(password),
-      createdAt: new Date().toISOString()
+try {
+  (function initCredentials() {
+    const creds = store.read('credentials');
+    if (creds.length > 0) return;
+    const defaults = [
+      ["Prosperr.io","ankur@prosperr.io","4IOISi7E"],
+      ["MMT","sakar+mybizfd5ece","2lrMvXlT"],
+      ["Bharatsure","risvan@bharatsure.com","Tartan@2025"],
+      ["Tifin India","siddharth@tifin.com","5llxWRVv"],
+      ["HDFC Bank Baas","chirag@tartanhq.com","DIADHfRa"],
+      ["Plum Benefits","PlumBenefitsTesting","eU59b851"],
+      ["HDFC Pension","akshaya+sriram@tartanhq.com","uBhDNqNH"],
+      ["Acko","ankur+acko@tartanhq.com","Acko-tartan@2025"],
+      ["Pensionbox","developer@pensionbox.in","CNPS@pensionbox"],
+      ["Policynation","jayakumar.g@policynation.com","Policynation-tartanHQ@2025"],
+      ["Loop","prashant.prabhakar@loophealth.com","oVixirBU"],
+      ["Happay by MMT","MyBiz_API_User","API_User@my_biz"],
+      ["BenefitWise (Earnest)","koushik.puppala@earnestdata-analytics.in","benefitwise-tartanHQ@2025"],
+      ["Ekincare","ankur+ekinUAT@tartanhq.com","ekin-tartan@2025"],
+      ["Tripjack","ankur+tripjackf8bdeb","tripjack-sync@2025"],
+      ["Tripare","kaushal42c836","Tripare@2026"],
+      ["Tifin USA","shoaib.haroon6eca9c","h123456789@H"],
+      ["TravelPlus","ankur+travelpluspoc@tartanhq.com","travelplus-tartan@2025"],
+      ["GoPrimo","amar7e8bc6","goprimo@2026"],
+      ["Ungender","ankur+getconductd51518","getconduct-tartan@2025"],
+      ["Ziptrip","ankur+ziptrrippoc74453e","ziptrrip-sync@2025"]
+    ];
+    defaults.forEach(([clientName, username, password]) => {
+      creds.push({
+        id: uuidv4(), clientName,
+        username: encrypt(username), password: encrypt(password),
+        createdAt: new Date().toISOString()
+      });
     });
-  });
-  store.write('credentials', creds);
-  console.log('Default credentials seeded.');
-})();
+    store.write('credentials', creds);
+    console.log('Default credentials seeded.');
+  })();
+} catch (e) { console.error('initCredentials failed:', e); }
 
 // ── Init default tools ───────────────────────────────────────────────
 
-(function initTools() {
-  let tools = store.read('tools');
-  const defaults = [
-    {
-      name: "Run Initial Sync",
-      curl: `curl --location 'https://node.tartanhq.com/api/initial_sync/' \\
+try {
+  (function initTools() {
+    let tools = store.read('tools');
+    const defaults = [
+      {
+        name: "Run Initial Sync",
+        curl: `curl --location 'https://node.tartanhq.com/api/initial_sync/' \\
 --header 'Content-Type: application/json' \\
 --header 'Authorization: Bearer {{token}}' \\
 --data '{
@@ -113,44 +118,45 @@ function requireSuperadmin(req, res, next) {
   "org_ids": ["{{org_id}}"],
   "trigger_sync": true
 }'`,
-      variables: ["org_id"],
-      environments: ["Prod", "Dev", "Test"]
-    },
-    {
-      name: "Payroll Connection Activation",
-      curl: `curl --location 'https://node.tartanhq.com/api/payroll-connection/update-status/' \\
+        variables: ["org_id"],
+        environments: ["Prod", "Dev", "Test"]
+      },
+      {
+        name: "Payroll Connection Activation",
+        curl: `curl --location 'https://node.tartanhq.com/api/payroll-connection/update-status/' \\
 --header 'Authorization: Bearer {{token}}' \\
 --header 'Content-Type: application/json' \\
 --data '{
     "org": "{{org_id}}",
     "connection_status": true
 }'`,
-      variables: ["org_id"],
-      environments: ["Prod", "Dev", "Test"]
-    },
-    {
-      name: "Data Purge API",
-      curl: `curl --location --request DELETE 'https://node.tartanhq.com/api/admin/app_conn/data_purge?vendor_org={{vendor_org_id}}&client_org={{org_id}}' \\
+        variables: ["org_id"],
+        environments: ["Prod", "Dev", "Test"]
+      },
+      {
+        name: "Data Purge API",
+        curl: `curl --location --request DELETE 'https://node.tartanhq.com/api/admin/app_conn/data_purge?vendor_org={{vendor_org_id}}&client_org={{org_id}}' \\
 --header 'Content-Type: application/json' \\
 --header 'Authorization: Bearer {{token}}'`,
-      variables: ["org_id", "vendor_org_id"],
-      environments: ["Prod", "Dev", "Test"]
-    }
-  ];
+        variables: ["org_id", "vendor_org_id"],
+        environments: ["Prod", "Dev", "Test"]
+      }
+    ];
 
-  let added = false;
-  defaults.forEach(def => {
-    if (!tools.find(t => t.name === def.name)) {
-      tools.push({ id: uuidv4(), ...def, createdAt: new Date().toISOString() });
-      added = true;
-    }
-  });
+    let added = false;
+    defaults.forEach(def => {
+      if (!tools.find(t => t.name === def.name)) {
+        tools.push({ id: uuidv4(), ...def, createdAt: new Date().toISOString() });
+        added = true;
+      }
+    });
 
-  if (added) {
-    store.write('tools', tools);
-    console.log('Missing default tools seeded.');
-  }
-})();
+    if (added) {
+      store.write('tools', tools);
+      console.log('Missing default tools seeded.');
+    }
+  })();
+} catch (e) { console.error('initTools failed:', e); }
 
 // ── AUTH ROUTES ──────────────────────────────────────────────────────
 
