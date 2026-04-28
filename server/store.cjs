@@ -1,16 +1,26 @@
 const fs = require('fs');
 const path = require('path');
 
-const DATA_DIR = process.env.VERCEL === '1' 
-  ? path.join('/tmp', 'data')
-  : path.join(__dirname, 'data');
+let DATA_DIR = path.join(__dirname, 'data');
+
+function ensureDir(dir) {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+}
 
 try {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
+  // First attempt: use local dir (works locally)
+  ensureDir(DATA_DIR);
 } catch (err) {
-  console.error('Failed to create data directory:', err);
+  // Second attempt: use /tmp (required for Vercel)
+  console.warn('Local data dir failed, falling back to /tmp/data');
+  DATA_DIR = path.join('/tmp', 'data');
+  try {
+    ensureDir(DATA_DIR);
+  } catch (err2) {
+    console.error('CRITICAL: Failed to create ANY data directory:', err2);
+  }
 }
 
 function getFilePath(name) {
