@@ -54,7 +54,7 @@ function App() {
     <>
       <div className="top-nav">
         <div className="nav-container">
-          <div className="nav-logo"><span className="badge-dot" /> TartanHQ</div>
+          <div className="nav-logo"><span className="badge-dot" /> AweCSM</div>
           <div className="nav-links">
             <button className={'nav-btn' + (activeView === 'dashboard' ? ' active' : '')} onClick={() => setActiveView('dashboard')}>Dashboard</button>
             <button className={'nav-btn' + (activeView === 'credentials' ? ' active' : '')} onClick={() => setActiveView('credentials')}>Credentials</button>

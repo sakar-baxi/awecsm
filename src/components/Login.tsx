@@ -32,7 +32,7 @@ export default function Login({ onLogin }: Props) {
     <div className="login-wrapper">
       <div className="login-card">
         <div className="login-header">
-          <div className="badge"><span className="badge-dot" /> TartanHQ Renewals</div>
+          <div className="badge"><span className="badge-dot" /> AweCSM</div>
           <h1 className="login-title">Welcome Back</h1>
           <p className="login-subtitle">Sign in to access the Vendor Connections dashboard</p>
         </div>
