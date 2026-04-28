@@ -491,7 +491,7 @@ app.get('/api/audit', authenticate, (req, res) => {
 
 // ── Serve static in production ───────────────────────────────────────
 
-if (process.env.NODE_ENV === 'production') {
+if (process.env.NODE_ENV === 'production' && process.env.VERCEL !== '1') {
   app.use(express.static(path.join(__dirname, '..', 'dist')));
   app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
