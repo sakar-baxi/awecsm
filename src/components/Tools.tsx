@@ -100,19 +100,25 @@ export default function Tools({ user }: Props) {
       else if (/(-X\s+DELETE|--request\s+DELETE)/i.test(tool.curl)) method = 'DELETE';
       else if (/(-d|--data|--data-raw)/.test(tool.curl)) method = 'POST';
 
-      const urlMatch = tool.curl.match(/'(https?:\/\/[^']+)'/) || tool.curl.match(/"(https?:\/\/[^"]+)"/);
+      const cleanedCurl = tool.curl.replace(/\\\n/g, ' ');
+      
+      const urlMatch = cleanedCurl.match(/'(https?:\/\/[^']+)'/) || 
+                       cleanedCurl.match(/"(https?:\/\/[^"]+)"/) ||
+                       cleanedCurl.match(/(https?:\/\/[^\s]+)/);
       let url = urlMatch ? urlMatch[1] : '';
 
-      const headerMatches = tool.curl.match(/(-H|--header)\s+(['"])(.*?)\2/g) || [];
+      const headerMatches = cleanedCurl.match(/(-H|--header)\s+(['"])(.*?)\2/g) || 
+                            cleanedCurl.match(/(-H|--header)\s+([^\s"']+)/g) || [];
       const headers: Record<string, string> = {};
       headerMatches.forEach(h => {
-        const content = h.replace(/^(-H|--header)\s+(['"])/, '').replace(/(['"])$/, '');
+        const content = h.replace(/^(-H|--header)\s+(['"]?)/, '').replace(/(['"]?)$/, '');
         const [key, ...val] = content.split(':');
         if (key) headers[key.trim()] = val.join(':').trim();
       });
 
-      const bodyMatch = tool.curl.match(/(-d|--data|--data-raw)\s+(['"])([\s\S]*?)\2/);
-      let body = bodyMatch ? bodyMatch[3] : null;
+      const bodyMatch = cleanedCurl.match(/(-d|--data|--data-raw|--data-binary)\s+(['"])([\s\S]*?)\2/) ||
+                        cleanedCurl.match(/(-d|--data|--data-raw|--data-binary)\s+([^\s"']+)/);
+      let body = bodyMatch ? (bodyMatch[3] || bodyMatch[2]) : null;
 
       // Replace variables in URL, headers, and body
       const replacements: Record<string, string> = {

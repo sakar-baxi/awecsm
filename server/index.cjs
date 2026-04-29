@@ -98,14 +98,49 @@ try {
     // 3. Tools
     const tools = store.read('tools');
     const toolDefaults = [
-      { name: "Run Initial Sync", curl: "...", variables: ["org_id"], environments: ["Prod", "Dev", "Test"] },
-      { name: "Payroll Connection Activation", curl: "...", variables: ["org_id"], environments: ["Prod", "Dev", "Test"] },
-      { name: "Data Purge API", curl: "...", variables: ["org_id", "vendor_org_id"], environments: ["Prod", "Dev", "Test"] }
+      {
+        name: "Run Initial Sync",
+        curl: `curl --location 'https://node.tartanhq.com/api/initial_sync/' \\
+--header 'Content-Type: application/json' \\
+--header 'Authorization: Bearer {{token}}' \\
+--data '{
+  "mode": "corporate",
+  "org_ids": ["{{org_id}}"],
+  "trigger_sync": true
+}'`,
+        variables: ["org_id"],
+        environments: ["Prod", "Dev", "Test"]
+      },
+      {
+        name: "Payroll Connection Activation",
+        curl: `curl --location 'https://node.tartanhq.com/api/payroll-connection/update-status/' \\
+--header 'Authorization: Bearer {{token}}' \\
+--header 'Content-Type: application/json' \\
+--data '{
+    "org": "{{org_id}}",
+    "connection_status": true
+}'`,
+        variables: ["org_id"],
+        environments: ["Prod", "Dev", "Test"]
+      },
+      {
+        name: "Data Purge API",
+        curl: `curl --location --request DELETE 'https://node.tartanhq.com/api/admin/app_conn/data_purge?vendor_org={{vendor_org_id}}&client_org={{org_id}}' \\
+--header 'Content-Type: application/json' \\
+--header 'Authorization: Bearer {{token}}'`,
+        variables: ["org_id", "vendor_org_id"],
+        environments: ["Prod", "Dev", "Test"]
+      }
     ];
     let toolAdded = false;
     toolDefaults.forEach(def => {
-      if (!tools.find(t => t.name === def.name)) {
+      const existing = tools.find(t => t.name === def.name);
+      if (!existing) {
         tools.push({ id: deterministicId('tool-' + def.name), ...def, createdAt: new Date().toISOString() });
+        toolAdded = true;
+      } else if (existing.curl === '...') {
+        existing.curl = def.curl;
+        existing.variables = def.variables;
         toolAdded = true;
       }
     });
