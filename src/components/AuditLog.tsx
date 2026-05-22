@@ -3,7 +3,7 @@ import { api } from '../api';
 import type { AuditEntry } from '../api';
 
 const ACTION_COLORS: Record<string, string> = {
-  LOGIN: '#22c55e', REVEAL_CREDENTIAL: '#f59e0b', FETCH_CONNECTIONS: '#6366f1',
+  LOGIN: '#059669', REVEAL_CREDENTIAL: '#d97706', FETCH_CONNECTIONS: '#1a6eff',
   ADD_CREDENTIAL: '#3b82f6', DELETE_CREDENTIAL: '#ef4444', CREATE_USER: '#8b5cf6',
   DELETE_USER: '#ef4444', RESET_PASSWORD: '#f97316', VIEW_USERS: '#64748b',
   ADD_TOOL: '#10b981', DELETE_TOOL: '#f43f5e', EXECUTE_TOOL: '#8b5cf6'
@@ -32,7 +32,7 @@ export default function AuditLog() {
     <div className="animate-fade-in">
       <div className="view-header">
         <h2 className="results-title">Audit Log</h2>
-        <p className="subtitle" style={{ textAlign: 'left', margin: '0.5rem 0 0' }}>
+        <p className="subtitle page-subtitle">
           Immutable record of all system activity. This log cannot be edited or deleted.
         </p>
       </div>
@@ -60,11 +60,11 @@ export default function AuditLog() {
             <tbody>
               {filtered.map(l => (
                 <tr key={l.id}>
-                  <td style={{ color: '#a1a1aa', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>{new Date(l.timestamp).toLocaleString()}</td>
+                  <td className="text-muted" style={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }}>{new Date(l.timestamp).toLocaleString()}</td>
                   <td>{l.username}</td>
                   <td><span className={'role-badge role-' + l.role}>{l.role}</span></td>
                   <td><span className="action-tag" style={{ borderColor: ACTION_COLORS[l.action] || '#52525b', color: ACTION_COLORS[l.action] || '#a1a1aa' }}>{l.action}</span></td>
-                  <td style={{ color: '#d4d4d8', fontSize: '0.8rem' }}>{l.details}</td>
+                  <td style={{ fontSize: '0.8rem' }}>{l.details}</td>
                 </tr>
               ))}
               {filtered.length === 0 && <tr><td colSpan={5} className="text-center text-muted">No log entries found</td></tr>}

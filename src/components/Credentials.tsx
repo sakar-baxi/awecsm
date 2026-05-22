@@ -68,7 +68,7 @@ export default function Credentials() {
     <div className="animate-fade-in">
       <div className="view-header">
         <h2 className="results-title">Manage Credentials</h2>
-        <p className="subtitle" style={{ textAlign: 'left', margin: '0.5rem 0 0' }}>
+        <p className="subtitle page-subtitle">
           Client API credentials are AES-256 encrypted. Reveal access is logged and auto-hides after 60 seconds.
         </p>
       </div>

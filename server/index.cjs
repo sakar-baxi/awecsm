@@ -312,5 +312,410 @@ app.post('/api/approvals/request', authenticate, (req, res) => {
   res.json(newRequest);
 });
 
+// ── HEALTH MONITOR ───────────────────────────────────────────────────
+
+let globalCheckState = {
+  running: false,
+  progress: 0,
+  total: 0,
+  currentClient: '',
+  lastRun: null,
+  error: null
+};
+
+function getHrmsName(item) {
+  return item.hrms_name || 
+         item.hrms || 
+         item.integration_name || 
+         item.integration || 
+         item.source || 
+         item.vendor_name || 
+         item.hrms_provider || 
+         (item.vendor && item.vendor.name) || 
+         item.integration_type || 
+         "Unknown HRMS";
+}
+
+async function runGlobalCheckInBackground() {
+  if (globalCheckState.running) return;
+  
+  globalCheckState.running = true;
+  globalCheckState.progress = 0;
+  globalCheckState.error = null;
+  
+  try {
+    const credentials = store.read('credentials');
+    globalCheckState.total = credentials.length;
+    
+    // We want to scan the last 7 days for global HRMS health
+    const toDate = new Date().toISOString().split('T')[0];
+    const fromDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    const allHrmsConnections = [];
+    const clientSummary = [];
+    
+    for (const cred of credentials) {
+      globalCheckState.currentClient = cred.clientName;
+      
+      try {
+        const username = decrypt(cred.username);
+        const password = decrypt(cred.password);
+        
+        // Ums login
+        const loginRes = await fetch('https://ums.tartanhq.com/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        if (!loginRes.ok) throw new Error('UMS Login failed');
+        const loginData = await loginRes.json();
+        
+        // Fetch connections
+        const connRes = await fetch('https://node.tartanhq.com/api/dashboard/vendor/connections/?status=active&page_size=500&page=1&is_post_processing_rules_added=false&sort=last_successful_sync%3Adesc', {
+          headers: { 'Authorization': 'Bearer ' + loginData.access_token }
+        });
+        if (!connRes.ok) throw new Error('Fetch connections failed');
+        const connData = await connRes.json();
+        
+        if (connData && Array.isArray(connData.data)) {
+          // Fetch sync logs for the last 7 days
+          let page = 1;
+          let logs = [];
+          let hasNext = true;
+          while (hasNext && page <= 5) {
+            const logsRes = await fetch(`https://node.tartanhq.com/api/dashboard/sync_logs/?from_date=${fromDate}&to_date=${toDate}&page=${page}&page_size=100`, {
+              headers: { 'Authorization': 'Bearer ' + loginData.access_token }
+            });
+            if (!logsRes.ok) break;
+            const logsData = await logsRes.json();
+            if (logsData && Array.isArray(logsData.data)) {
+              logs.push(...logsData.data);
+              hasNext = logsData.pageInfo?.next || false;
+              page++;
+            } else {
+              hasNext = false;
+            }
+          }
+          
+          let clientTotal = connData.data.length;
+          let clientFailed = 0;
+          let clientWarning = 0;
+          let clientHealthy = 0;
+          
+          connData.data.forEach(conn => {
+            const connId = conn.id || conn.connection_id;
+            const connLogs = logs.filter(l => l.connection_id === connId);
+            
+            let totalAttempts = connLogs.length;
+            let successAttempts = connLogs.filter(l => l.sync_status === 'success').length;
+            let failedAttempts = connLogs.filter(l => l.sync_status === 'failed').length;
+            
+            let status = 'healthy';
+            if (totalAttempts > 0) {
+              if (successAttempts === 0 && failedAttempts > 0) {
+                status = 'failed';
+                clientFailed++;
+              } else if (failedAttempts > 0) {
+                status = 'warning';
+                clientWarning++;
+              } else {
+                clientHealthy++;
+              }
+            } else {
+              status = 'no_sync';
+              clientWarning++;
+            }
+            
+            allHrmsConnections.push({
+              connectionId: connId,
+              orgName: conn.org_name || 'Unknown Corporate',
+              orgId: conn.org_id,
+              clientName: cred.clientName,
+              clientId: cred.id,
+              hrmsName: getHrmsName(conn),
+              status,
+              totalAttempts,
+              successAttempts,
+              failedAttempts,
+              lastSyncTime: connLogs[0]?.sync_start_time || conn.last_successful_sync || null,
+              lastFailureReason: connLogs.find(l => l.sync_status === 'failed')?.failure_reason || null
+            });
+          });
+          
+          clientSummary.push({
+            clientId: cred.id,
+            clientName: cred.clientName,
+            status: 'success',
+            totalConnections: clientTotal,
+            healthy: clientHealthy,
+            warning: clientWarning,
+            failed: clientFailed
+          });
+        }
+      } catch (err) {
+        console.error(`Global Health Check failed for client ${cred.clientName}:`, err.message);
+        clientSummary.push({
+          clientId: cred.id,
+          clientName: cred.clientName,
+          status: 'error',
+          error: err.message
+        });
+      }
+      
+      globalCheckState.progress++;
+    }
+    
+    const hrmsMap = {};
+    allHrmsConnections.forEach(conn => {
+      const hrms = conn.hrmsName;
+      if (!hrmsMap[hrms]) {
+        hrmsMap[hrms] = {
+          hrmsName: hrms,
+          clients: new Set(),
+          connections: [],
+          totalConnections: 0,
+          failedConnections: 0,
+          warningConnections: 0,
+          healthyConnections: 0,
+          noSyncConnections: 0
+        };
+      }
+      
+      hrmsMap[hrms].clients.add(conn.clientName);
+      hrmsMap[hrms].connections.push(conn);
+      hrmsMap[hrms].totalConnections++;
+      
+      if (conn.status === 'failed') hrmsMap[hrms].failedConnections++;
+      else if (conn.status === 'warning') hrmsMap[hrms].warningConnections++;
+      else if (conn.status === 'healthy') hrmsMap[hrms].healthyConnections++;
+      else if (conn.status === 'no_sync') hrmsMap[hrms].noSyncConnections++;
+    });
+    
+    const hrmsList = Object.values(hrmsMap).map(h => {
+      const hasContinuousFailures = h.connections.some(c => c.status === 'failed');
+      const isOutage = h.totalConnections > 0 && h.connections.every(c => c.status === 'failed' || c.status === 'no_sync') && h.failedConnections > 0;
+      
+      return {
+        hrmsName: h.hrmsName,
+        clients: Array.from(h.clients),
+        totalConnections: h.totalConnections,
+        failedConnections: h.failedConnections,
+        warningConnections: h.warningConnections,
+        healthyConnections: h.healthyConnections,
+        noSyncConnections: h.noSyncConnections,
+        status: isOutage ? 'outage' : (hasContinuousFailures ? 'warning' : 'healthy'),
+        connections: h.connections
+      };
+    });
+    
+    store.write('health_status', {
+      lastRun: new Date().toISOString(),
+      hrmsList,
+      clientSummary,
+      alerts: allHrmsConnections.filter(c => c.status === 'failed' || c.status === 'no_sync')
+    });
+    
+  } catch (err) {
+    console.error('Global check failed completely:', err);
+    globalCheckState.error = err.message;
+  } finally {
+    globalCheckState.running = false;
+  }
+}
+
+app.get('/api/health/client/:credId', authenticate, async (req, res) => {
+  const { from_date, to_date } = req.query;
+  if (!from_date || !to_date) return res.status(400).json({ error: 'from_date and to_date are required' });
+  
+  const cred = store.read('credentials').find(c => c.id === req.params.credId);
+  if (!cred) return res.status(404).json({ error: 'Client not found' });
+  
+  try {
+    const username = decrypt(cred.username);
+    const password = decrypt(cred.password);
+    
+    const loginRes = await fetch('https://ums.tartanhq.com/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    if (!loginRes.ok) throw new Error('UMS Login failed');
+    const loginData = await loginRes.json();
+    const token = loginData.access_token;
+    
+    const connRes = await fetch('https://node.tartanhq.com/api/dashboard/vendor/connections/?status=active&page_size=500&page=1&is_post_processing_rules_added=false&sort=last_successful_sync%3Adesc', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!connRes.ok) throw new Error('Fetch active connections failed');
+    const connData = await connRes.json();
+    const activeConnections = connData.data || [];
+    
+    // Fetch logs
+    let page = 1;
+    let allLogs = [];
+    let hasNext = true;
+    while (hasNext && page <= 15) {
+      const logsRes = await fetch(`https://node.tartanhq.com/api/dashboard/sync_logs/?from_date=${from_date}&to_date=${to_date}&page=${page}&page_size=100`, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (!logsRes.ok) break;
+      const logsData = await logsRes.json();
+      if (logsData && Array.isArray(logsData.data)) {
+        allLogs.push(...logsData.data);
+        hasNext = logsData.pageInfo?.next || false;
+        page++;
+      } else {
+        hasNext = false;
+      }
+    }
+    
+    // Generate date sequence
+    const dates = [];
+    let curr = new Date(from_date);
+    const end = new Date(to_date);
+    while (curr <= end) {
+      dates.push(curr.toISOString().split('T')[0]);
+      curr.setDate(curr.getDate() + 1);
+    }
+    
+    let healthyCount = 0;
+    let warningCount = 0;
+    let failedCount = 0;
+    
+    const processedConnections = activeConnections.map(conn => {
+      const connId = conn.id || conn.connection_id;
+      const connLogs = allLogs.filter(l => l.connection_id === connId);
+      
+      let totalSyncs = connLogs.length;
+      let successSyncs = connLogs.filter(l => l.sync_status === 'success').length;
+      let failedSyncs = connLogs.filter(l => l.sync_status === 'failed').length;
+      
+      // Calculate daily status map
+      const dailyStatus = dates.map(date => {
+        const dayLogs = connLogs.filter(l => l.sync_start_time && l.sync_start_time.startsWith(date));
+        let status = 'no_sync';
+        let sCount = 0;
+        let fCount = 0;
+        
+        dayLogs.forEach(l => {
+          if (l.sync_status === 'success') {
+            status = 'success';
+            sCount++;
+          } else if (l.sync_status === 'failed') {
+            if (status !== 'success') status = 'failed';
+            fCount++;
+          }
+        });
+        
+        return { date, status, successCount: sCount, failedCount: fCount, totalCount: dayLogs.length };
+      });
+      
+      // Overall health category
+      let overallStatus = 'healthy';
+      if (totalSyncs > 0) {
+        if (successSyncs === 0 && failedSyncs > 0) {
+          overallStatus = 'failed';
+          failedCount++;
+        } else if (failedSyncs > 0) {
+          overallStatus = 'warning';
+          warningCount++;
+        } else {
+          healthyCount++;
+        }
+      } else {
+        overallStatus = 'no_sync';
+        warningCount++; // No sync is a warning (inactive)
+      }
+      
+      const successRate = totalSyncs > 0 ? Math.round((successSyncs / totalSyncs) * 100) : 0;
+      
+      // Failure categories
+      const failures = connLogs.filter(l => l.sync_status === 'failed');
+      const failureReasons = Array.from(new Set(failures.map(f => f.failure_reason).filter(Boolean)));
+      
+      // PM Metrics
+      const totalEmployeesFound = connLogs.reduce((acc, l) => acc + (l.employees_found || 0), 0);
+      const totalEmployeesCreated = connLogs.reduce((acc, l) => acc + (l.employees_created || 0), 0);
+      const totalEmployeesUpdated = connLogs.reduce((acc, l) => acc + (l.employees_updated || 0), 0);
+      const avgDuration = connLogs.length > 0 ? Math.round(connLogs.reduce((acc, l) => acc + (l.duration_seconds || 0), 0) / connLogs.length * 10) / 10 : 0;
+      
+      return {
+        id: connId,
+        orgName: conn.org_name || 'Unknown Corporate',
+        orgId: conn.org_id,
+        hrmsName: getHrmsName(conn),
+        overallStatus,
+        totalSyncs,
+        successSyncs,
+        failedSyncs,
+        successRate,
+        dailyStatus,
+        lastSyncStatus: connLogs[0]?.sync_status || null,
+        lastSyncTime: connLogs[0]?.sync_start_time || conn.last_successful_sync || null,
+        failureReasons,
+        metrics: {
+          totalEmployeesFound,
+          totalEmployeesCreated,
+          totalEmployeesUpdated,
+          avgDurationSeconds: avgDuration
+        }
+      };
+    });
+    
+    res.json({
+      connections: processedConnections,
+      dates,
+      summary: {
+        totalConnections: activeConnections.length,
+        healthy: healthyCount,
+        warning: warningCount,
+        failed: failedCount
+      }
+    });
+    
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/health/global-status', authenticate, (req, res) => {
+  const data = store.read('health_status');
+  res.json({
+    ...data,
+    running: globalCheckState.running,
+    progress: globalCheckState.progress,
+    total: globalCheckState.total,
+    currentClient: globalCheckState.currentClient,
+    error: globalCheckState.error
+  });
+});
+
+app.post('/api/health/global-check', authenticate, (req, res) => {
+  if (!globalCheckState.running) {
+    runGlobalCheckInBackground().catch(console.error);
+  }
+  res.json({
+    running: globalCheckState.running,
+    progress: globalCheckState.progress,
+    total: globalCheckState.total,
+    currentClient: globalCheckState.currentClient
+  });
+});
+
+// Schedule daily check (once every 24 hours)
+setInterval(() => {
+  console.log('Running scheduled daily global sync health check...');
+  runGlobalCheckInBackground().catch(console.error);
+}, 24 * 60 * 60 * 1000);
+
+// Run initial check after 10 seconds of startup if file doesn't exist
+setTimeout(() => {
+  const existing = store.read('health_status');
+  if (!existing || Object.keys(existing).length === 0) {
+    console.log('No health status found on startup. Triggering initial health scan...');
+    runGlobalCheckInBackground().catch(console.error);
+  }
+}, 10000);
+
 if (process.env.VERCEL !== '1') app.listen(PORT, () => console.log('Server running on port ' + PORT));
 module.exports = app;

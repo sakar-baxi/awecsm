@@ -1,0 +1,841 @@
+/* Health Monitor — scoped to Tartan light theme */
+
+.health-monitor-wrapper {
+  width: 100%;
+  color: var(--text-color);
+}
+
+.health-monitor-wrapper .btn-tab {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color 0.15s ease, background-color 0.15s ease;
+  font-size: 0.8125rem;
+}
+
+.health-monitor-wrapper .btn-tab:hover {
+  color: var(--text-color);
+  background: var(--surface-muted);
+}
+
+.health-monitor-wrapper .btn-tab.active {
+  background: var(--tartan-blue-muted);
+  color: var(--accent-color);
+  border: 1px solid rgba(26, 110, 255, 0.2);
+}
+
+.health-monitor-wrapper .tab-buttons {
+  display: flex;
+  gap: 0.5rem;
+  background: var(--surface-muted);
+  padding: 0.25rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.health-monitor-wrapper .controls-grid {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(200px, 1.1fr) minmax(200px, 1.1fr) minmax(140px, 0.85fr);
+  gap: var(--space-4);
+  align-items: end;
+}
+
+.health-monitor-wrapper .preset-buttons {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.health-monitor-wrapper .btn-preset {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.7rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.health-monitor-wrapper .btn-preset:hover {
+  background: var(--surface-muted);
+  border-color: #c5d0e3;
+}
+
+.health-monitor-wrapper .date-inputs-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.health-monitor-wrapper .metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.health-monitor-wrapper .metric-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  box-shadow: var(--card-shadow);
+}
+
+.health-monitor-wrapper .metric-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.health-monitor-wrapper .metric-value {
+  font-size: 1.375rem;
+  font-weight: 700;
+  margin: var(--space-2) 0 var(--space-1);
+  color: var(--text-color);
+  letter-spacing: -0.02em;
+}
+
+.health-monitor-wrapper .metric-footer {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.health-monitor-wrapper .alert-center-card {
+  background: var(--card-bg);
+  border: 1px solid rgba(225, 29, 72, 0.15);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  margin-bottom: var(--space-5);
+  box-shadow: var(--card-shadow);
+}
+
+.health-monitor-wrapper .alert-center-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+}
+
+.health-monitor-wrapper .alert-icon-pulse {
+  font-size: 1.5rem;
+  animation: pulse 2s infinite;
+}
+
+.health-monitor-wrapper .alert-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.health-monitor-wrapper .pill-group {
+  display: flex;
+  gap: 0.25rem;
+  background: var(--surface-muted);
+  padding: 0.2rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+}
+
+.health-monitor-wrapper .btn-pill {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  border-radius: 0.35rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.health-monitor-wrapper .btn-pill.active {
+  background: var(--p0-rose);
+  color: #fff;
+}
+
+.health-monitor-wrapper .alerting-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+
+.health-monitor-wrapper .alerting-item-card {
+  background: var(--surface-muted);
+  border: 1px solid rgba(225, 29, 72, 0.15);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  font-size: 0.75rem;
+}
+
+.health-monitor-wrapper .alerting-item-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.health-monitor-wrapper .alerting-corp-name {
+  font-weight: 600;
+  color: var(--text-color);
+  font-size: 0.8rem;
+}
+
+.health-monitor-wrapper .badge-critical {
+  background: rgba(225, 29, 72, 0.1);
+  color: var(--p0-rose);
+  font-size: 0.6rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.health-monitor-wrapper .alerting-item-detail {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.health-monitor-wrapper .alerting-failure-reason {
+  background: rgba(225, 29, 72, 0.06);
+  border: 1px solid rgba(225, 29, 72, 0.15);
+  padding: 0.35rem;
+  border-radius: var(--radius-sm);
+  color: #9f1239;
+  margin-bottom: 0.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.health-monitor-wrapper .alerting-item-footer {
+  color: var(--text-muted);
+  font-size: 0.65rem;
+}
+
+.health-monitor-wrapper .alert-center-empty {
+  text-align: center;
+  padding: 1.5rem;
+  color: var(--success-emerald);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.health-monitor-wrapper .section-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-color);
+  margin: 0;
+}
+
+.health-monitor-wrapper .corp-name-cell {
+  font-weight: 600;
+  color: var(--text-color);
+  font-size: 0.85rem;
+}
+
+.health-monitor-wrapper .connection-id-cell {
+  font-family: ui-monospace, monospace;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  margin-top: 0.15rem;
+}
+
+.health-monitor-wrapper .hrms-badge {
+  background: var(--tartan-blue-muted);
+  color: var(--accent-color);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(26, 110, 255, 0.2);
+}
+
+.health-monitor-wrapper .status-badge-premium {
+  display: inline-block;
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 0.15rem 0.4rem;
+  border-radius: 9999px;
+  letter-spacing: 0.02em;
+  border: 1px solid;
+  text-transform: capitalize;
+}
+
+.health-monitor-wrapper .status-badge-premium.healthy {
+  background: rgba(5, 150, 105, 0.1);
+  border-color: rgba(5, 150, 105, 0.25);
+  color: var(--success-emerald);
+}
+
+.health-monitor-wrapper .status-badge-premium.warning,
+.health-monitor-wrapper .status-badge-premium.no_sync {
+  background: rgba(217, 119, 6, 0.1);
+  border-color: rgba(217, 119, 6, 0.25);
+  color: var(--warning-amber);
+}
+
+.health-monitor-wrapper .status-badge-premium.failed {
+  background: rgba(225, 29, 72, 0.1);
+  border-color: rgba(225, 29, 72, 0.25);
+  color: var(--p0-rose);
+}
+
+.health-monitor-wrapper .daily-grid-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 320px;
+}
+
+.health-monitor-wrapper .day-block {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.health-monitor-wrapper .day-block:hover {
+  transform: scale(1.15);
+  z-index: 10;
+}
+
+.health-monitor-wrapper .day-block.success {
+  background: var(--success-emerald);
+  color: #fff;
+}
+
+.health-monitor-wrapper .day-block.failed {
+  background: var(--p0-rose);
+  color: #fff;
+}
+
+.health-monitor-wrapper .day-block.no_sync {
+  background: var(--surface-muted);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+}
+
+.health-monitor-wrapper .success-rate-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.health-monitor-wrapper .success-progress-bg {
+  flex: 1;
+  height: 6px;
+  background: var(--surface-muted);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.health-monitor-wrapper .success-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+}
+
+.health-monitor-wrapper .success-progress-fill.healthy { background: var(--success-emerald); }
+.health-monitor-wrapper .success-progress-fill.warning,
+.health-monitor-wrapper .success-progress-fill.no_sync { background: var(--warning-amber); }
+.health-monitor-wrapper .success-progress-fill.failed { background: var(--p0-rose); }
+
+.health-monitor-wrapper .success-rate-val {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-color);
+  min-width: 2.2rem;
+  text-align: right;
+}
+
+.health-monitor-wrapper .sync-attempts-sub,
+.health-monitor-wrapper .last-sync-sub {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  margin-top: 0.15rem;
+}
+
+.health-monitor-wrapper .last-sync-time {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.health-monitor-wrapper .pm-insights-section {
+  margin-top: 2.5rem;
+}
+
+.health-monitor-wrapper .analytics-details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.health-monitor-wrapper .analytics-box {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  padding: 1.25rem;
+  box-shadow: var(--card-shadow);
+}
+
+.health-monitor-wrapper .analytics-box h4 {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-color);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.5rem;
+}
+
+.health-monitor-wrapper .latency-val {
+  background: var(--tartan-blue-muted);
+  color: var(--accent-color);
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.25rem;
+  font-weight: 600;
+  border: 1px solid rgba(26, 110, 255, 0.15);
+}
+
+.health-monitor-wrapper .root-cause-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.health-monitor-wrapper .root-cause-item {
+  background: var(--surface-muted);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem;
+}
+
+.health-monitor-wrapper .root-cause-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+
+.health-monitor-wrapper .root-cause-corp {
+  font-weight: 600;
+  color: var(--text-color);
+  font-size: 0.75rem;
+}
+
+.health-monitor-wrapper .root-cause-hrms {
+  color: var(--accent-color);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.health-monitor-wrapper .root-cause-reason {
+  margin: 0;
+  font-size: 0.7rem;
+  color: var(--p0-rose);
+  font-family: ui-monospace, monospace;
+  background: rgba(225, 29, 72, 0.05);
+  padding: 0.25rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(225, 29, 72, 0.12);
+  white-space: normal;
+  word-break: break-all;
+}
+
+.health-monitor-wrapper .empty-diagnostics {
+  text-align: center;
+  padding: 2rem;
+  color: var(--success-emerald);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.health-monitor-wrapper .global-scanner-card {
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.health-monitor-wrapper .scanner-layout {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.health-monitor-wrapper .scanner-info h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.health-monitor-wrapper .scanner-info p {
+  margin: 0.25rem 0 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.health-monitor-wrapper .last-run-badge {
+  display: inline-block;
+  background: var(--surface-muted);
+  border: 1px solid var(--border-color);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.health-monitor-wrapper .progress-section {
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+  padding-top: 1rem;
+}
+
+.health-monitor-wrapper .progress-details {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.health-monitor-wrapper .progress-track {
+  height: 8px;
+  background: var(--surface-muted);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
+.health-monitor-wrapper .progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-color), #5b9dff);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.health-monitor-wrapper .global-alert-banner {
+  padding: var(--space-4);
+  border: 1px solid rgba(217, 119, 6, 0.18);
+  background: rgba(217, 119, 6, 0.04);
+  margin-bottom: var(--space-5);
+}
+
+.health-monitor-wrapper .global-alert-banner .alert-horizontal-list {
+  max-height: 72px;
+}
+
+.health-monitor-wrapper .banner-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--warning-amber);
+  letter-spacing: 0.01em;
+  margin-bottom: var(--space-3);
+  line-height: 1.4;
+}
+
+.health-monitor-wrapper .alert-horizontal-list {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding-bottom: 0.5rem;
+}
+
+.health-monitor-wrapper .alert-banner-item {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.health-monitor-wrapper .alert-banner-client {
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.health-monitor-wrapper .alert-banner-arrow {
+  color: var(--text-muted);
+}
+
+.health-monitor-wrapper .alert-banner-corp {
+  font-weight: 700;
+  color: var(--text-color);
+}
+
+.health-monitor-wrapper .alert-banner-hrms {
+  background: var(--tartan-blue-muted);
+  color: var(--accent-color);
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.25rem;
+  font-weight: 600;
+}
+
+.health-monitor-wrapper .alert-banner-status.red {
+  color: var(--p0-rose);
+  font-weight: 700;
+  font-size: 0.6rem;
+}
+
+.health-monitor-wrapper .hrms-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-4);
+}
+
+.health-monitor-wrapper .hrms-card {
+  padding: var(--space-4);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--card-bg);
+  box-shadow: var(--card-shadow);
+}
+
+.health-monitor-wrapper .hrms-card.outage {
+  border-color: rgba(225, 29, 72, 0.3);
+  box-shadow: 0 4px 16px rgba(225, 29, 72, 0.08);
+}
+
+.health-monitor-wrapper .hrms-card.warning {
+  border-color: rgba(217, 119, 6, 0.3);
+}
+
+.health-monitor-wrapper .hrms-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.health-monitor-wrapper .hrms-card-name {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.health-monitor-wrapper .hrms-card-clients-count {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.health-monitor-wrapper .hrms-status-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.25rem;
+}
+
+.health-monitor-wrapper .hrms-status-badge.healthy {
+  background: rgba(5, 150, 105, 0.1);
+  color: var(--success-emerald);
+}
+
+.health-monitor-wrapper .hrms-status-badge.warning {
+  background: rgba(217, 119, 6, 0.1);
+  color: var(--warning-amber);
+}
+
+.health-monitor-wrapper .hrms-status-badge.outage {
+  background: rgba(225, 29, 72, 0.1);
+  color: var(--p0-rose);
+}
+
+.health-monitor-wrapper .hrms-clients-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  margin-bottom: var(--space-3);
+  max-height: 52px;
+  overflow-y: auto;
+}
+
+.health-monitor-wrapper .client-pill {
+  background: var(--surface-muted);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  font-size: 0.625rem;
+  font-weight: 500;
+  padding: 0.125rem 0.375rem;
+  border-radius: 9999px;
+}
+
+.health-monitor-wrapper .hrms-metrics-bar {
+  display: flex;
+  background: var(--surface-muted);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.health-monitor-wrapper .hrms-metric-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-right: 1px solid var(--border-color);
+}
+
+.health-monitor-wrapper .hrms-metric-item:last-child {
+  border-right: none;
+}
+
+.health-monitor-wrapper .h-m-val {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-color);
+}
+
+.health-monitor-wrapper .hrms-metric-item.green .h-m-val { color: var(--success-emerald); }
+.health-monitor-wrapper .hrms-metric-item.orange .h-m-val { color: var(--warning-amber); }
+.health-monitor-wrapper .hrms-metric-item.red .h-m-val { color: var(--p0-rose); }
+
+.health-monitor-wrapper .h-m-lbl {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.health-monitor-wrapper .hrms-failure-details-box {
+  background: var(--surface-muted);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem;
+}
+
+.health-monitor-wrapper .hrms-failure-scroller {
+  max-height: 80px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.health-monitor-wrapper .hrms-fail-log-item {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.25rem;
+  font-size: 0.65rem;
+}
+
+.health-monitor-wrapper .hrms-fail-log-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.health-monitor-wrapper .fail-log-client {
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.health-monitor-wrapper .fail-log-reason {
+  color: var(--p0-rose);
+  font-family: ui-monospace, monospace;
+  font-size: 0.6rem;
+}
+
+.health-monitor-wrapper .card-glass {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--card-shadow);
+}
+
+.health-monitor-wrapper .empty-icon {
+  display: block;
+  margin: 0 auto 1rem;
+  color: var(--accent-color);
+}
+
+.health-monitor-wrapper .empty-icon.muted {
+  color: var(--text-muted);
+}
+
+.health-monitor-wrapper .alert-header-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.health-monitor-wrapper .filter-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.health-monitor-wrapper .error-card {
+  background: rgba(225, 29, 72, 0.06);
+  border: 1px solid rgba(225, 29, 72, 0.2);
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.health-monitor-wrapper .btn-primary.full-width {
+  width: 100%;
+}
+
+.health-monitor-wrapper .btn-scan {
+  min-width: 200px;
+  white-space: nowrap;
+}
+
+@media (max-width: 1024px) {
+  .health-monitor-wrapper .controls-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .health-monitor-wrapper .metrics-grid,
+  .health-monitor-wrapper .hrms-cards-grid,
+  .health-monitor-wrapper .alerting-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .health-monitor-wrapper .view-header {
+    flex-direction: column;
+  }
+  .health-monitor-wrapper .controls-grid,
+  .health-monitor-wrapper .metrics-grid,
+  .health-monitor-wrapper .hrms-cards-grid,
+  .health-monitor-wrapper .alerting-grid,
+  .health-monitor-wrapper .analytics-details-grid {
+    grid-template-columns: 1fr;
+  }
+  .health-monitor-wrapper .scanner-layout {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

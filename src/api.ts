@@ -88,4 +88,10 @@ export const api = {
   requestApproval: (action: string, targetId: string, details: string) => request('/api/approvals/request', { method: 'POST', body: JSON.stringify({ action, targetId, details }) }),
   approveAction: (id: string) => request('/api/approvals/' + id + '/approve', { method: 'POST' }),
   rejectAction: (id: string) => request('/api/approvals/' + id + '/reject', { method: 'POST' }),
+
+  // Health Monitor
+  fetchClientHealth: (credId: string, fromDate: string, toDate: string): Promise<any> => 
+    request(`/api/health/client/${credId}?from_date=${fromDate}&to_date=${toDate}`),
+  fetchGlobalHealthStatus: (): Promise<any> => request('/api/health/global-status'),
+  triggerGlobalHealthCheck: (): Promise<any> => request('/api/health/global-check', { method: 'POST' }),
 };

@@ -71,7 +71,7 @@ export default function Dashboard() {
 
   return (
     <div className="animate-fade-in">
-      <div className="form-container" style={{ marginBottom: '2rem', padding: '1.5rem' }}>
+      <div className="form-container" style={{ marginBottom: 'var(--space-5)' }}>
         <div className="input-group">
           <label className="input-label">Select Client to Fetch</label>
           <select className="token-input" onChange={handleSelectClient} defaultValue="">
@@ -110,12 +110,12 @@ export default function Dashboard() {
                   <div className="error-message" style={{ padding: '2rem', background: 'rgba(239,68,68,0.1)', borderRadius: '1rem' }}>
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="20" height="20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" /></svg>
                     {tabData[activeTabId].error}
-                    <button onClick={() => fetchClientData(activeTabId)} className="btn-secondary" style={{ marginLeft: 'auto', background: '#ef4444', color: 'white' }}>Retry</button>
+                    <button onClick={() => fetchClientData(activeTabId)} className="btn-secondary btn-danger" style={{ marginLeft: 'auto' }}>Retry</button>
                   </div>
                 ) : (
                   <>
                     <div className="results-header">
-                      <h2 className="results-title">{credentials.find(c => c.id === activeTabId)?.clientName} Connections</h2>
+                      <h2 className="section-title">{credentials.find(c => c.id === activeTabId)?.clientName} connections</h2>
                       <button onClick={() => downloadCSV(activeTabId)} className="btn-secondary">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fillRule="evenodd" d="M10 3a.75.75 0 01.75.75v6.879l2.22-2.22a.75.75 0 111.06 1.06l-3.5 3.5a.75.75 0 01-1.06 0l-3.5-3.5a.75.75 0 111.06-1.06l2.22 2.22V3.75A.75.75 0 0110 3z" clipRule="evenodd" /><path d="M3 14.75a.75.75 0 01.75-.75h12.5a.75.75 0 010 1.5H3.75a.75.75 0 01-.75-.75z" /></svg>
                         Download CSV
@@ -147,8 +147,8 @@ export default function Dashboard() {
         </div>
       ) : (
         <div className="empty-state">
-          <svg style={{ margin: '0 auto 1rem', color: '#3f3f46' }} xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
-          <h3 style={{ color: '#e4e4e7', margin: '0 0 0.5rem', fontWeight: 500 }}>No Clients Selected</h3>
+          <svg className="empty-icon" xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+          <h3 className="state-title">No Clients Selected</h3>
           Select a client from the dropdown above to fetch and view their connections.
         </div>
       )}

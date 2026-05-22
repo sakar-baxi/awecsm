@@ -54,7 +54,7 @@ export default function UserManagement() {
     <div className="animate-fade-in">
       <div className="view-header">
         <h2 className="results-title">User Management</h2>
-        <p className="subtitle" style={{ textAlign: 'left', margin: '0.5rem 0 0' }}>
+        <p className="subtitle page-subtitle">
           Create and manage user accounts. Only superadmins can access this page.
         </p>
       </div>

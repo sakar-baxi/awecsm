@@ -48,7 +48,7 @@ export default function Approvals() {
     <div className="animate-fade-in">
       <div className="view-header">
         <h2 className="results-title">Pending Approvals</h2>
-        <p className="subtitle" style={{ textAlign: 'left', margin: '0.5rem 0 0' }}>
+        <p className="subtitle page-subtitle">
           Deletions and sensitive actions require superadmin consent before execution.
         </p>
       </div>

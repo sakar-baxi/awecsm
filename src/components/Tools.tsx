@@ -155,11 +155,11 @@ export default function Tools({ user }: Props) {
   if (loading) return <div className="empty-state">Loading tools...</div>;
 
   return (
-    <div className="animate-fade-in">
-      <div className="view-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+    <div className="animate-fade-in tools-page">
+      <div className="view-header">
         <div>
           <h2 className="results-title">Developer Tools</h2>
-          <p className="subtitle" style={{ textAlign: 'left', margin: '0.5rem 0 0' }}>
+          <p className="subtitle page-subtitle">
             Execute saved APIs with automated variable injection.
           </p>
         </div>
@@ -181,8 +181,7 @@ export default function Tools({ user }: Props) {
                 required 
                 value={newCurl} 
                 onChange={e => setNewCurl(e.target.value)} 
-                className="token-input" 
-                style={{ minHeight: '120px', fontFamily: 'monospace' }}
+                className="token-input textarea-tall"
                 placeholder="Paste curl here. Use {{variable_name}} for dynamic fields."
               />
             </div>
@@ -190,14 +189,14 @@ export default function Tools({ user }: Props) {
               <button type="submit" className="btn-primary">Save Tool</button>
             </div>
           </form>
-          <div style={{ marginTop: '1rem', fontSize: '0.8rem', color: '#a1a1aa' }}>
+          <div className="form-hint">
             <strong>Tip:</strong> You can use <code>{"{{vendor_org_id}}"}</code> and <code>{"{{org_id}}"}</code> which will be automatically filled based on the selected client and corporate.
           </div>
         </div>
       )}
 
       {tools.length > 0 ? (
-        <div className="tools-layout" style={{ display: 'grid', gridTemplateColumns: '250px 1fr', gap: '2rem', marginTop: '1rem' }}>
+        <div className="tools-layout">
           <div className="tools-sidebar">
             <div className="table-wrapper">
               <div className="sidebar-list">
@@ -227,15 +226,15 @@ export default function Tools({ user }: Props) {
             </div>
           </div>
 
-          <div className="tool-execution">
+          <div className="tool-execution panel">
             {activeTool && (
               <div className="results-container">
-                <div className="results-header">
-                  <h3 className="results-title">{activeTool.name}</h3>
+                <div className="panel-header">
+                  <h3 className="panel-title">{activeTool.name}</h3>
                   <div className="badge"><span className="badge-dot" /> {selectedEnv}</div>
                 </div>
 
-                <div className="execution-form" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 100px', gap: '1rem', marginBottom: '2rem' }}>
+                <div className="execution-form">
                   <div className="input-group">
                     <label className="input-label">Select Client</label>
                     <select className="token-input" value={selectedCredId} onChange={e => setSelectedCredId(e.target.value)}>
@@ -262,8 +261,8 @@ export default function Tools({ user }: Props) {
 
                 {activeTool.variables.length > 0 && (
                   <div className="variables-section" style={{ marginBottom: '2rem' }}>
-                    <h4 style={{ fontSize: '0.9rem', marginBottom: '1rem', color: '#e4e4e7' }}>Custom Variables</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
+                    <h4>Custom Variables</h4>
+                    <div className="variables-grid">
                       {activeTool.variables.filter(v => v !== 'org_id' && v !== 'vendor_org_id').map(v => (
                         <div key={v} className="input-group">
                           <label className="input-label">{v}</label>
@@ -278,17 +277,16 @@ export default function Tools({ user }: Props) {
                   </div>
                 )}
 
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                <div className="exec-actions">
                   <button 
                     className="btn-primary" 
                     onClick={handleExecute} 
                     disabled={executing || !selectedCredId || (activeTool.variables.includes('org_id') && !selectedCorpId)}
-                    style={{ minWidth: '150px' }}
                   >
                     {executing ? <div className="spinner" /> : 'Execute API'}
                   </button>
                   {vendorInfo && (
-                    <span style={{ fontSize: '0.8rem', color: '#10b981' }}>
+                    <span className="exec-success">
                       ✓ Auto-fetched Vendor ID: <code>{vendorInfo.vendor_org_id}</code>
                     </span>
                   )}
@@ -296,11 +294,9 @@ export default function Tools({ user }: Props) {
 
                 {execResult && (
                   <div className="result-output" style={{ marginTop: '2rem' }}>
-                    <h4 style={{ fontSize: '0.9rem', marginBottom: '1rem', color: '#e4e4e7' }}>Response</h4>
-                    <div className="table-wrapper" style={{ padding: '1rem', background: '#09090b', overflow: 'auto', maxHeight: '400px' }}>
-                      <pre style={{ margin: 0, fontSize: '0.8rem', color: '#d4d4d8', fontFamily: 'monospace' }}>
-                        {JSON.stringify(execResult, null, 2)}
-                      </pre>
+                    <h4>Response</h4>
+                    <div className="table-wrapper code-output">
+                      <pre>{JSON.stringify(execResult, null, 2)}</pre>
                     </div>
                   </div>
                 )}
@@ -313,48 +309,6 @@ export default function Tools({ user }: Props) {
           No tools added yet. Click "Add New Tool" to get started.
         </div>
       )}
-
-      <style>{`
-        .sidebar-list {
-          display: flex;
-          flex-direction: column;
-        }
-        .sidebar-item {
-          padding: 0.75rem 1rem;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          cursor: pointer;
-          border-bottom: 1px solid var(--border-color);
-          transition: all 0.2s;
-          font-size: 0.85rem;
-          color: #a1a1aa;
-        }
-        .sidebar-item:hover {
-          background: rgba(39, 39, 42, 0.5);
-          color: white;
-        }
-        .sidebar-item.active {
-          background: rgba(99, 102, 241, 0.15);
-          color: #818cf8;
-          border-right: 2px solid #818cf8;
-        }
-        .tool-name {
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          margin-right: 0.5rem;
-        }
-        .add-tool-form {
-          display: grid;
-          grid-template-columns: 1fr 1fr 1fr;
-          gap: 1.5rem;
-        }
-        .btn-icon.small {
-          padding: 0.1rem 0.3rem;
-          font-size: 1rem;
-        }
-      `}</style>
     </div>
   );
 }
