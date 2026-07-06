@@ -120,6 +120,14 @@ h1, h2, h3, h4, h5, h6 {
   max-width: 52ch;
 }
 
+.subtitle code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  background: var(--surface-muted);
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.2rem;
+}
+
 /* ─── Surfaces & panels ─────────────────────────────────────── */
 .card-glass,
 .form-container,

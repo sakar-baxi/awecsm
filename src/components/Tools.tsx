@@ -1,8 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../api';
 import type { ToolItem, CredentialItem, UserInfo } from '../api';
+import { parseCurl, extractCurlVariables, applyCurlReplacements, validateToolExecution } from '../utils/parseCurl';
+import { MinorTaskTimer } from './TaskProgress';
 
 type Props = { user: UserInfo };
+
+type ExecResult = {
+  ok?: boolean;
+  status?: number;
+  statusText?: string;
+  url?: string;
+  method?: string;
+  data?: unknown;
+  error?: string;
+};
 
 export default function Tools({ user }: Props) {
   const [tools, setTools] = useState<ToolItem[]>([]);
@@ -11,19 +23,19 @@ export default function Tools({ user }: Props) {
   const [activeToolId, setActiveToolId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
 
-  // Add Tool Form State
   const [newName, setNewName] = useState('');
   const [newCurl, setNewCurl] = useState('');
   const [newEnvs] = useState<string[]>(['Prod', 'Dev', 'Test']);
 
-  // Execution State
   const [selectedCredId, setSelectedCredId] = useState('');
-  const [corporates, setCorporates] = useState<any[]>([]);
+  const [corporates, setCorporates] = useState<{ name: string; id: string }[]>([]);
   const [selectedCorpId, setSelectedCorpId] = useState('');
   const [selectedEnv, setSelectedEnv] = useState('Prod');
   const [variableValues, setVariableValues] = useState<Record<string, string>>({});
   const [executing, setExecuting] = useState(false);
-  const [execResult, setExecResult] = useState<any>(null);
+  const [execResult, setExecResult] = useState<ExecResult | null>(null);
+  const [execError, setExecError] = useState('');
+  const [loadingCorps, setLoadingCorps] = useState(false);
   const [vendorInfo, setVendorInfo] = useState<{ vendor_org_id: string; org_name: string } | null>(null);
 
   const load = useCallback(async () => {
@@ -31,49 +43,66 @@ export default function Tools({ user }: Props) {
       const [t, c] = await Promise.all([api.getTools(), api.getCredentials()]);
       setTools(t);
       setCreds(c);
-      if (t.length > 0 && !activeToolId) setActiveToolId(t[0].id);
+      setActiveToolId(prev => prev || (t[0]?.id ?? null));
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, [activeToolId]);
-
-  useEffect(() => { load(); }, [load]);
+  }, []);
 
   useEffect(() => {
-    if (selectedCredId) {
-      // Fetch Vendor Info and Corporates
-      api.getVendorInfo(selectedCredId).then(setVendorInfo).catch(console.error);
-      api.fetchConnections(selectedCredId).then(res => {
-        if (res.data && Array.isArray(res.data)) {
-          // Extract unique corporates with their org_id
-          const uniqueCorps: any[] = [];
-          const seen = new Set();
-          res.data.forEach((item: any) => {
-            if (item.org_name && item.org_id && !seen.has(item.org_id)) {
-              seen.add(item.org_id);
-              uniqueCorps.push({ name: item.org_name, id: item.org_id });
-            }
-          });
-          setCorporates(uniqueCorps);
-        }
-      }).catch(console.error);
-    } else {
+    load();
+  }, [load]);
+
+  useEffect(() => {
+    if (!selectedCredId) {
       setVendorInfo(null);
       setCorporates([]);
       setSelectedCorpId('');
+      return;
     }
+
+    setLoadingCorps(true);
+    setVendorInfo(null);
+    setCorporates([]);
+    setSelectedCorpId('');
+
+    Promise.all([
+      api.getVendorInfo(selectedCredId).catch(() => null),
+      api.fetchConnections(selectedCredId).catch(() => null),
+    ])
+      .then(([vendor, connRes]) => {
+        if (vendor) setVendorInfo(vendor);
+        if (connRes?.data && Array.isArray(connRes.data)) {
+          const uniqueCorps: { name: string; id: string }[] = [];
+          const seen = new Set<string>();
+          connRes.data.forEach((item: { org_name?: string; org_id?: string | number }) => {
+            const orgId = item.org_id != null ? String(item.org_id) : '';
+            if (item.org_name && orgId && !seen.has(orgId)) {
+              seen.add(orgId);
+              uniqueCorps.push({ name: item.org_name, id: orgId });
+            }
+          });
+          uniqueCorps.sort((a, b) => a.name.localeCompare(b.name));
+          setCorporates(uniqueCorps);
+        }
+      })
+      .finally(() => setLoadingCorps(false));
   }, [selectedCredId]);
+
+  useEffect(() => {
+    setVariableValues({});
+    setExecResult(null);
+    setExecError('');
+  }, [activeToolId]);
 
   const handleAddTool = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName || !newCurl) return;
-    
-    // Extract variables from curl (looking for {{variable}})
-    const matches = newCurl.match(/\{\{([^}]+)\}\}/g) || [];
-    const vars = Array.from(new Set(matches.map(m => m.replace(/[{}]/g, ''))));
-    
+
+    const vars = extractCurlVariables(newCurl);
+
     try {
       await api.addTool(newName, newCurl, vars, newEnvs);
       setNewName('');
@@ -87,70 +116,66 @@ export default function Tools({ user }: Props) {
 
   const handleExecute = async () => {
     const tool = tools.find(t => t.id === activeToolId);
-    if (!tool || !selectedCredId) return;
+    if (!tool) return;
+
+    const validationError = validateToolExecution(tool, {
+      selectedCredId,
+      selectedCorpId,
+      vendorOrgId: vendorInfo?.vendor_org_id,
+      variableValues,
+    });
+    if (validationError) {
+      setExecError(validationError);
+      return;
+    }
 
     setExecuting(true);
     setExecResult(null);
+    setExecError('');
 
     try {
-      // Parse cURL to extract method, headers, and body
-      let method = 'GET';
-      if (/(-X\s+POST|--request\s+POST)/i.test(tool.curl)) method = 'POST';
-      else if (/(-X\s+PUT|--request\s+PUT)/i.test(tool.curl)) method = 'PUT';
-      else if (/(-X\s+DELETE|--request\s+DELETE)/i.test(tool.curl)) method = 'DELETE';
-      else if (/(-d|--data|--data-raw)/.test(tool.curl)) method = 'POST';
+      const parsed = parseCurl(tool.curl);
+      if (!parsed.url) throw new Error('Could not parse URL from cURL. Check the saved command.');
 
-      const cleanedCurl = tool.curl.replace(/\\\n/g, ' ');
-      
-      const urlMatch = cleanedCurl.match(/'(https?:\/\/[^']+)'/) || 
-                       cleanedCurl.match(/"(https?:\/\/[^"]+)"/) ||
-                       cleanedCurl.match(/(https?:\/\/[^\s]+)/);
-      let url = urlMatch ? urlMatch[1] : '';
-
-      const headerMatches = cleanedCurl.match(/(-H|--header)\s+(['"])(.*?)\2/g) || 
-                            cleanedCurl.match(/(-H|--header)\s+([^\s"']+)/g) || [];
-      const headers: Record<string, string> = {};
-      headerMatches.forEach(h => {
-        const content = h.replace(/^(-H|--header)\s+(['"]?)/, '').replace(/(['"]?)$/, '');
-        const [key, ...val] = content.split(':');
-        if (key) headers[key.trim()] = val.join(':').trim();
-      });
-
-      const bodyMatch = cleanedCurl.match(/(-d|--data|--data-raw|--data-binary)\s+(['"])([\s\S]*?)\2/) ||
-                        cleanedCurl.match(/(-d|--data|--data-raw|--data-binary)\s+([^\s"']+)/);
-      let body = bodyMatch ? (bodyMatch[3] || bodyMatch[2]) : null;
-
-      // Replace variables in URL, headers, and body
-      const replacements: Record<string, string> = {
+      const replaced = applyCurlReplacements(parsed, {
         ...variableValues,
         vendor_org_id: vendorInfo?.vendor_org_id || '',
-        org_id: selectedCorpId || ''
-      };
-
-      const replace = (str: string) => {
-        let res = str;
-        Object.entries(replacements).forEach(([k, v]) => {
-          res = res.split(`{{${k}}}`).join(v);
-        });
-        return res;
-      };
-
-      url = replace(url);
-      if (body) body = replace(body);
-      Object.keys(headers).forEach(k => {
-        headers[k] = replace(headers[k]);
+        org_id: selectedCorpId,
+        token: '',
       });
 
-      const result = await api.executeTool(selectedCredId, url, method, headers, body, selectedEnv);
+      const result = await api.executeTool(
+        selectedCredId,
+        replaced.url,
+        replaced.method,
+        replaced.headers,
+        replaced.body,
+        selectedEnv,
+        tool.name
+      ) as ExecResult;
+
       setExecResult(result);
+      if (result.ok === false) {
+        setExecError(result.error || `API returned HTTP ${result.status || 'error'}`);
+      }
     } catch (err) {
-      setExecResult({ error: err instanceof Error ? err.message : 'Execution failed' });
+      const message = err instanceof Error ? err.message : 'Execution failed';
+      setExecError(message);
+      setExecResult({ ok: false, error: message });
     } finally {
       setExecuting(false);
     }
   };
 
   const activeTool = tools.find(t => t.id === activeToolId);
+  const isDestructive = activeTool && (/purge|data purge/i.test(activeTool.name) || /data_purge/i.test(activeTool.curl));
+  const canExecute =
+    !!activeTool &&
+    !!selectedCredId &&
+    !executing &&
+    !loadingCorps &&
+    (!activeTool.variables.includes('org_id') || !!selectedCorpId) &&
+    (!activeTool.variables.includes('vendor_org_id') || !!vendorInfo?.vendor_org_id);
 
   if (loading) return <div className="empty-state">Loading tools...</div>;
 
@@ -160,7 +185,7 @@ export default function Tools({ user }: Props) {
         <div>
           <h2 className="results-title">Developer Tools</h2>
           <p className="subtitle page-subtitle">
-            Execute saved APIs with automated variable injection.
+            Execute saved APIs with automated auth, vendor org, and corporate variable injection.
           </p>
         </div>
         <button className="btn-primary" onClick={() => setShowAddForm(!showAddForm)}>
@@ -177,10 +202,10 @@ export default function Tools({ user }: Props) {
             </div>
             <div className="input-group" style={{ gridColumn: 'span 2' }}>
               <label className="input-label">cURL Command</label>
-              <textarea 
-                required 
-                value={newCurl} 
-                onChange={e => setNewCurl(e.target.value)} 
+              <textarea
+                required
+                value={newCurl}
+                onChange={e => setNewCurl(e.target.value)}
                 className="token-input textarea-tall"
                 placeholder="Paste curl here. Use {{variable_name}} for dynamic fields."
               />
@@ -190,7 +215,8 @@ export default function Tools({ user }: Props) {
             </div>
           </form>
           <div className="form-hint">
-            <strong>Tip:</strong> You can use <code>{"{{vendor_org_id}}"}</code> and <code>{"{{org_id}}"}</code> which will be automatically filled based on the selected client and corporate.
+            <strong>Tip:</strong> Use <code>{'{{vendor_org_id}}'}</code> and <code>{'{{org_id}}'}</code> for auto-fill.
+            <code>{'{{token}}'}</code> is injected automatically — do not fill it manually.
           </div>
         </div>
       )}
@@ -201,22 +227,27 @@ export default function Tools({ user }: Props) {
             <div className="table-wrapper">
               <div className="sidebar-list">
                 {tools.map(t => (
-                  <div 
-                    key={t.id} 
+                  <div
+                    key={t.id}
                     className={`sidebar-item ${activeToolId === t.id ? 'active' : ''}`}
-                    onClick={() => { setActiveToolId(t.id); setExecResult(null); }}
+                    onClick={() => setActiveToolId(t.id)}
                   >
                     <span className="tool-name">{t.name}</span>
                     {user.role === 'superadmin' && (
-                      <button className="btn-icon btn-danger small" onClick={async (e) => { 
-                        e.stopPropagation(); 
-                        if (confirm('Request deletion of tool: ' + t.name + '?')) {
-                          try {
-                            await api.requestApproval('DELETE_TOOL', t.id, 'Tool: ' + t.name);
-                            alert('Deletion request sent.');
-                          } catch (err: any) { alert(err.message); }
-                        }
-                      }}>
+                      <button
+                        className="btn-icon btn-danger small"
+                        onClick={async e => {
+                          e.stopPropagation();
+                          if (confirm('Request deletion of tool: ' + t.name + '?')) {
+                            try {
+                              await api.requestApproval('DELETE_TOOL', t.id, 'Tool: ' + t.name);
+                              alert('Deletion request sent.');
+                            } catch (err: unknown) {
+                              alert(err instanceof Error ? err.message : 'Request failed');
+                            }
+                          }
+                        }}
+                      >
                         &times;
                       </button>
                     )}
@@ -234,6 +265,12 @@ export default function Tools({ user }: Props) {
                   <div className="badge"><span className="badge-dot" /> {selectedEnv}</div>
                 </div>
 
+                {isDestructive && user.role !== 'superadmin' && (
+                  <div className="tool-warning-banner">
+                    This is a destructive tool. Only superadmins can execute it.
+                  </div>
+                )}
+
                 <div className="execution-form">
                   <div className="input-group">
                     <label className="input-label">Select Client</label>
@@ -244,31 +281,36 @@ export default function Tools({ user }: Props) {
                   </div>
                   <div className="input-group">
                     <label className="input-label">Select Corporate</label>
-                    <select className="token-input" value={selectedCorpId} onChange={e => setSelectedCorpId(e.target.value)} disabled={!selectedCredId}>
-                      <option value="">-- Choose Corporate --</option>
+                    <select
+                      className="token-input"
+                      value={selectedCorpId}
+                      onChange={e => setSelectedCorpId(e.target.value)}
+                      disabled={!selectedCredId || loadingCorps}
+                    >
+                      <option value="">{loadingCorps ? 'Loading corporates…' : '-- Choose Corporate --'}</option>
                       {corporates.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </div>
                   <div className="input-group">
                     <label className="input-label">Env</label>
                     <select className="token-input" value={selectedEnv} onChange={e => setSelectedEnv(e.target.value)}>
-                      <option value="Prod">Prod</option>
-                      <option value="Dev">Dev</option>
-                      <option value="Test">Test</option>
+                      {(activeTool.environments?.length ? activeTool.environments : ['Prod', 'Dev', 'Test']).map(env => (
+                        <option key={env} value={env}>{env}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
 
-                {activeTool.variables.length > 0 && (
+                {activeTool.variables.filter(v => v !== 'org_id' && v !== 'vendor_org_id').length > 0 && (
                   <div className="variables-section" style={{ marginBottom: '2rem' }}>
                     <h4>Custom Variables</h4>
                     <div className="variables-grid">
                       {activeTool.variables.filter(v => v !== 'org_id' && v !== 'vendor_org_id').map(v => (
                         <div key={v} className="input-group">
                           <label className="input-label">{v}</label>
-                          <input 
-                            className="token-input compact" 
-                            value={variableValues[v] || ''} 
+                          <input
+                            className="token-input compact"
+                            value={variableValues[v] || ''}
                             onChange={e => setVariableValues(prev => ({ ...prev, [v]: e.target.value }))}
                           />
                         </div>
@@ -278,25 +320,43 @@ export default function Tools({ user }: Props) {
                 )}
 
                 <div className="exec-actions">
-                  <button 
-                    className="btn-primary" 
-                    onClick={handleExecute} 
-                    disabled={executing || !selectedCredId || (activeTool.variables.includes('org_id') && !selectedCorpId)}
+                  <button
+                    className="btn-primary"
+                    onClick={handleExecute}
+                    disabled={!canExecute || (isDestructive && user.role !== 'superadmin')}
                   >
                     {executing ? <div className="spinner" /> : 'Execute API'}
                   </button>
-                  {vendorInfo && (
+                  {executing && <MinorTaskTimer active label="Executing tool" />}
+                  {vendorInfo?.vendor_org_id && (
                     <span className="exec-success">
-                      ✓ Auto-fetched Vendor ID: <code>{vendorInfo.vendor_org_id}</code>
+                      ✓ Vendor org: <code>{vendorInfo.vendor_org_id}</code>
+                      {vendorInfo.org_name ? ` (${vendorInfo.org_name})` : ''}
                     </span>
                   )}
                 </div>
 
+                {execError && (
+                  <div className="tool-error-banner">{execError}</div>
+                )}
+
                 {execResult && (
                   <div className="result-output" style={{ marginTop: '2rem' }}>
-                    <h4>Response</h4>
-                    <div className="table-wrapper code-output">
-                      <pre>{JSON.stringify(execResult, null, 2)}</pre>
+                    <div className="result-output-header">
+                      <h4>Response</h4>
+                      {execResult.status != null && (
+                        <span className={`tool-status-badge ${execResult.ok ? 'ok' : 'fail'}`}>
+                          HTTP {execResult.status}{execResult.statusText ? ` ${execResult.statusText}` : ''}
+                        </span>
+                      )}
+                    </div>
+                    {execResult.url && (
+                      <p className="tool-request-line">
+                        <strong>{execResult.method || 'GET'}</strong> {execResult.url}
+                      </p>
+                    )}
+                    <div className={`table-wrapper code-output ${execResult.ok === false ? 'error' : 'success'}`}>
+                      <pre>{JSON.stringify(execResult.data ?? execResult, null, 2)}</pre>
                     </div>
                   </div>
                 )}
@@ -306,7 +366,7 @@ export default function Tools({ user }: Props) {
         </div>
       ) : (
         <div className="empty-state">
-          No tools added yet. Click "Add New Tool" to get started.
+          No tools added yet. Click &quot;Add New Tool&quot; to get started.
         </div>
       )}
     </div>

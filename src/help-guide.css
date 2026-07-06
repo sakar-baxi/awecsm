@@ -1,0 +1,106 @@
+.help-guide {
+  max-width: 960px;
+}
+
+.help-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.help-card {
+  padding: var(--space-5);
+}
+
+.help-card .section-title {
+  margin-bottom: var(--space-3);
+}
+
+.help-p {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0 0 var(--space-3);
+}
+
+.help-list,
+.help-ol {
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: 0.8125rem;
+  color: var(--text-color);
+  line-height: 1.65;
+}
+
+.help-list li,
+.help-ol li {
+  margin-bottom: var(--space-2);
+}
+
+.help-list li:last-child,
+.help-ol li:last-child {
+  margin-bottom: 0;
+}
+
+.help-list code,
+.help-p code,
+.help-formula {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  background: var(--surface-muted);
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+}
+
+.help-formula {
+  display: block;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  margin-bottom: var(--space-3);
+  color: var(--tartan-navy);
+  font-size: 0.8125rem;
+}
+
+.help-note {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: var(--tartan-blue-muted);
+  border: 1px solid rgba(26, 110, 255, 0.15);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  margin: var(--space-3) 0 0;
+  line-height: 1.55;
+}
+
+.help-table {
+  margin-bottom: var(--space-3);
+}
+
+.help-table .status-badge-premium {
+  font-size: 0.625rem;
+}
+
+.help-guide .status-badge-premium.healthy {
+  background: rgba(5, 150, 105, 0.1);
+  border-color: rgba(5, 150, 105, 0.25);
+  color: var(--success-emerald);
+}
+
+.help-guide .status-badge-premium.warning {
+  background: rgba(217, 119, 6, 0.1);
+  border-color: rgba(217, 119, 6, 0.25);
+  color: var(--warning-amber);
+}
+
+.help-guide .status-badge-premium.failed {
+  background: rgba(225, 29, 72, 0.1);
+  border-color: rgba(225, 29, 72, 0.25);
+  color: var(--p0-rose);
+}
+
+.help-guide .status-badge-premium.no_sync {
+  background: var(--surface-muted);
+  border-color: var(--border-color);
+  color: var(--text-muted);
+}

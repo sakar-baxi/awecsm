@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { api } from '../api';
+import { api, loadUser } from '../api';
 import type { CredentialItem } from '../api';
 
 type RevealedData = { username: string; password: string };
@@ -13,6 +13,18 @@ export default function Credentials() {
   const [newUser, setNewUser] = useState('');
   const [newPass, setNewPass] = useState('');
   const [loading, setLoading] = useState(true);
+  const user = loadUser();
+
+  const handleImportCsv = async () => {
+    if (!confirm('Import credentials from credentials.csv in project root? Existing clients will be updated.')) return;
+    try {
+      const result = await api.importCredentialsCsv();
+      alert(`Import complete: ${result.added} added, ${result.updated} updated (${result.total} total).`);
+      load();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Import failed');
+    }
+  };
 
   const load = useCallback(() => { api.getCredentials().then(c => { setCreds(c); setLoading(false); }).catch(console.error); }, []);
   useEffect(() => { load(); return () => { Object.values(intervals.current).forEach(clearInterval); }; }, [load]);
@@ -71,6 +83,11 @@ export default function Credentials() {
         <p className="subtitle page-subtitle">
           Client API credentials are AES-256 encrypted. Reveal access is logged and auto-hides after 60 seconds.
         </p>
+        {user?.role === 'superadmin' && (
+          <button type="button" className="btn-secondary" style={{ marginTop: '0.75rem' }} onClick={handleImportCsv}>
+            Import from credentials.csv
+          </button>
+        )}
       </div>
 
       <div className="form-container">

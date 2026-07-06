@@ -167,6 +167,72 @@
   font-size: 0.8125rem;
 }
 
+.tools-page .tool-warning-banner,
+.tools-page .tool-error-banner {
+  margin: var(--space-4) 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: 0.8125rem;
+}
+
+.tools-page .tool-warning-banner {
+  background: rgba(217, 119, 6, 0.1);
+  border: 1px solid rgba(217, 119, 6, 0.25);
+  color: var(--warning-amber);
+}
+
+.tools-page .tool-error-banner {
+  background: rgba(225, 29, 72, 0.08);
+  border: 1px solid rgba(225, 29, 72, 0.2);
+  color: var(--p0-rose);
+}
+
+.tools-page .result-output-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.tools-page .tool-status-badge {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.tools-page .tool-status-badge.ok {
+  background: rgba(5, 150, 105, 0.12);
+  color: var(--success-emerald);
+}
+
+.tools-page .tool-status-badge.fail {
+  background: rgba(225, 29, 72, 0.1);
+  color: var(--p0-rose);
+}
+
+.tools-page .tool-request-line {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin: 0 0 var(--space-3);
+  word-break: break-all;
+}
+
+.tools-page .code-output.success {
+  border-color: rgba(5, 150, 105, 0.25);
+}
+
+.tools-page .code-output.error {
+  border-color: rgba(225, 29, 72, 0.25);
+}
+
+.tools-page .code-output.error pre {
+  color: #fecaca;
+}
+
 @media (max-width: 768px) {
   .tools-page .tools-layout,
   .tools-page .add-tool-form,

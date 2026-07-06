@@ -4,9 +4,13 @@ import type { AuditEntry } from '../api';
 
 const ACTION_COLORS: Record<string, string> = {
   LOGIN: '#059669', REVEAL_CREDENTIAL: '#d97706', FETCH_CONNECTIONS: '#1a6eff',
-  ADD_CREDENTIAL: '#3b82f6', DELETE_CREDENTIAL: '#ef4444', CREATE_USER: '#8b5cf6',
+  ADD_CREDENTIAL: '#3b82f6', DELETE_CREDENTIAL: '#ef4444', ADD_USER: '#8b5cf6',
   DELETE_USER: '#ef4444', RESET_PASSWORD: '#f97316', VIEW_USERS: '#64748b',
-  ADD_TOOL: '#10b981', DELETE_TOOL: '#f43f5e', EXECUTE_TOOL: '#8b5cf6'
+  ADD_TOOL: '#10b981', DELETE_TOOL: '#f43f5e', EXECUTE_TOOL: '#8b5cf6',
+  ADD_CURL_SNIPPET: '#0ea5e9', REVEAL_CURL_SNIPPET: '#d97706', UPDATE_CURL_SNIPPET: '#6366f1',
+  DELETE_CURL_SNIPPET: '#ef4444', TRIGGER_GLOBAL_HEALTH: '#14b8a6', TRIGGER_SEARCH_REINDEX: '#14b8a6',
+  APPROVE_DELETE_CREDENTIAL: '#059669', APPROVE_DELETE_USER: '#059669', APPROVE_DELETE_TOOL: '#059669',
+  REJECT_DELETE_CREDENTIAL: '#ef4444', REJECT_DELETE_USER: '#ef4444', REJECT_DELETE_TOOL: '#ef4444',
 };
 
 export default function AuditLog() {
@@ -33,7 +37,7 @@ export default function AuditLog() {
       <div className="view-header">
         <h2 className="results-title">Audit Log</h2>
         <p className="subtitle page-subtitle">
-          Immutable record of all system activity. This log cannot be edited or deleted.
+          Immutable record of privileged actions (logins, credential reveals, tool execution, curl access, approvals).
         </p>
       </div>
 

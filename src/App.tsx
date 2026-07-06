@@ -9,13 +9,29 @@ import AuditLog from './components/AuditLog';
 import Tools from './components/Tools';
 import Approvals from './components/Approvals';
 import HealthMonitor from './components/HealthMonitor';
+import HelpGuide from './components/HelpGuide';
+import SyncMetrics from './components/SyncMetrics';
+import GlobalSearch from './components/GlobalSearch';
+import CurlRepository from './components/CurlRepository';
 
-type View = 'dashboard' | 'credentials' | 'tools' | 'users' | 'audit' | 'approvals' | 'health-monitor';
+type View = 'dashboard' | 'credentials' | 'tools' | 'users' | 'audit' | 'approvals' | 'health-monitor' | 'sync-metrics' | 'search' | 'curl-library' | 'help';
 
 function App() {
   const [user, setUser] = useState<UserInfo | null>(null);
   const [checking, setChecking] = useState(true);
   const [activeView, setActiveView] = useState<View>('dashboard');
+
+  const openCurlLibrary = (prefill?: {
+    connectionId: string;
+    clientId: string;
+    clientName: string;
+    orgName: string;
+  }) => {
+    if (prefill) {
+      sessionStorage.setItem('curl_repo_prefill', JSON.stringify(prefill));
+    }
+    setActiveView('curl-library');
+  };
 
   useEffect(() => {
     const saved = loadUser();
@@ -90,6 +106,36 @@ function App() {
               Health Monitor
             </button>
             <button 
+              className={'sidebar-nav-btn' + (activeView === 'sync-metrics' ? ' active' : '')} 
+              onClick={() => setActiveView('sync-metrics')}
+            >
+              <svg className="nav-btn-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 3v18h18"/>
+                <path d="M7 16l4-8 4 5 5-9"/>
+              </svg>
+              Sync metrics
+            </button>
+            <button 
+              className={'sidebar-nav-btn' + (activeView === 'search' ? ' active' : '')} 
+              onClick={() => setActiveView('search')}
+            >
+              <svg className="nav-btn-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              Global search
+            </button>
+            <button 
+              className={'sidebar-nav-btn' + (activeView === 'curl-library' ? ' active' : '')} 
+              onClick={() => openCurlLibrary()}
+            >
+              <svg className="nav-btn-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="4 17 10 11 4 5"/>
+                <line x1="12" y1="19" x2="20" y2="19"/>
+              </svg>
+              cURL library
+            </button>
+            <button 
               className={'sidebar-nav-btn' + (activeView === 'tools' ? ' active' : '')} 
               onClick={() => setActiveView('tools')}
             >
@@ -97,6 +143,17 @@ function App() {
                 <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
               </svg>
               Tools
+            </button>
+            <button 
+              className={'sidebar-nav-btn' + (activeView === 'help' ? ' active' : '')} 
+              onClick={() => setActiveView('help')}
+            >
+              <svg className="nav-btn-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+              Help guide
             </button>
           </div>
 
@@ -126,18 +183,16 @@ function App() {
               </svg>
               Audit Log
             </button>
-            {user.role === 'superadmin' && (
-              <button 
-                className={'sidebar-nav-btn' + (activeView === 'approvals' ? ' active' : '')} 
-                onClick={() => setActiveView('approvals')}
-              >
-                <svg className="nav-btn-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                  <polyline points="22 4 12 14.01 9 11.01"/>
-                </svg>
-                Approvals
-              </button>
-            )}
+            <button 
+              className={'sidebar-nav-btn' + (activeView === 'approvals' ? ' active' : '')} 
+              onClick={() => setActiveView('approvals')}
+            >
+              <svg className="nav-btn-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+              {user.role === 'superadmin' ? 'Approvals' : 'My requests'}
+            </button>
           </div>
 
           {user.role === 'superadmin' && (
@@ -187,7 +242,17 @@ function App() {
             <span className="breadcrumb-root">Unified Platform</span>
             <span className="breadcrumb-separator">/</span>
             <span className="breadcrumb-active">
-              {activeView === 'health-monitor' ? 'Health Monitor' : activeView.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+              {activeView === 'health-monitor'
+                ? 'Health Monitor'
+                : activeView === 'sync-metrics'
+                  ? 'Sync metrics'
+                  : activeView === 'search'
+                    ? 'Global search'
+                    : activeView === 'curl-library'
+                      ? 'cURL library'
+                    : activeView === 'help'
+                      ? 'Help guide'
+                      : activeView.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
             </span>
           </div>
           <div className="header-status">
@@ -201,12 +266,16 @@ function App() {
         {/* Scrollable Content Pane */}
         <main className="main-content">
           {activeView === 'dashboard' && <Dashboard />}
-          {activeView === 'health-monitor' && <HealthMonitor />}
+          {activeView === 'health-monitor' && <HealthMonitor onOpenHelp={() => setActiveView('help')} />}
+          {activeView === 'sync-metrics' && <SyncMetrics />}
+          {activeView === 'search' && <GlobalSearch onOpenCurlLibrary={openCurlLibrary} />}
+          {activeView === 'curl-library' && <CurlRepository user={user} />}
+          {activeView === 'help' && <HelpGuide />}
           {activeView === 'credentials' && <Credentials />}
           {activeView === 'tools' && <Tools user={user} />}
           {activeView === 'users' && user.role === 'superadmin' && <UserManagement />}
           {activeView === 'audit' && <AuditLog />}
-          {activeView === 'approvals' && user.role === 'superadmin' && <Approvals />}
+          {activeView === 'approvals' && <Approvals user={user} />}
         </main>
       </div>
     </div>

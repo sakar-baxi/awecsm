@@ -1,0 +1,194 @@
+.sync-metrics-page .granularity-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  background: var(--surface-muted);
+  padding: 0.25rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+}
+
+.sync-metrics-page .granularity-tabs button {
+  background: transparent;
+  border: none;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sync-metrics-page .granularity-tabs button:hover {
+  background: var(--card-bg);
+  color: var(--text-color);
+}
+
+.sync-metrics-page .granularity-tabs button.active {
+  background: var(--card-bg);
+  color: var(--accent-color);
+  box-shadow: 0 1px 2px rgba(10, 22, 40, 0.06);
+}
+
+.sync-metrics-page .charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+
+.sync-metrics-page .chart-panel {
+  padding: var(--space-4);
+}
+
+.sync-metrics-page .chart-panel h4 {
+  margin: 0 0 var(--space-4);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 160px;
+  padding-top: var(--space-2);
+}
+
+.bar-chart-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  justify-content: flex-end;
+}
+
+.bar-chart-stack {
+  width: 100%;
+  max-width: 32px;
+  display: flex;
+  flex-direction: column-reverse;
+  border-radius: 4px 4px 0 0;
+  overflow: hidden;
+  min-height: 2px;
+}
+
+.bar-chart-stack .seg-success {
+  background: var(--success-emerald);
+}
+
+.bar-chart-stack .seg-failed {
+  background: var(--p0-rose);
+}
+
+.bar-chart-label {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  transform: rotate(-45deg);
+  white-space: nowrap;
+  max-width: 52px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chart-legend {
+  display: flex;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.chart-legend span::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-right: 0.4rem;
+  vertical-align: middle;
+}
+
+.legend-success::before {
+  background: var(--success-emerald);
+}
+
+.legend-failed::before {
+  background: var(--p0-rose);
+}
+
+.empty-diagnostics {
+  text-align: center;
+  padding: 2rem;
+  color: var(--success-emerald);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+@media (max-width: 1024px) {
+  .sync-metrics-page .charts-grid {
+    grid-template-columns: 1fr;
+  }
+  .sync-metrics-page .metrics-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+.sync-metrics-page .status-badge-premium {
+  display: inline-block;
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 0.15rem 0.4rem;
+  border-radius: 9999px;
+  letter-spacing: 0.02em;
+  border: 1px solid;
+  text-transform: capitalize;
+}
+
+.sync-metrics-page .status-badge-premium.healthy {
+  background: rgba(5, 150, 105, 0.1);
+  border-color: rgba(5, 150, 105, 0.25);
+  color: var(--success-emerald);
+}
+
+.sync-metrics-page .status-badge-premium.warning {
+  background: rgba(217, 119, 6, 0.1);
+  border-color: rgba(217, 119, 6, 0.25);
+  color: var(--warning-amber);
+}
+
+.sync-metrics-page .status-badge-premium.failed {
+  background: rgba(225, 29, 72, 0.1);
+  border-color: rgba(225, 29, 72, 0.25);
+  color: var(--p0-rose);
+}
+
+.sync-metrics-page .hrms-badge {
+  background: var(--tartan-blue-muted);
+  color: var(--accent-color);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(26, 110, 255, 0.2);
+}
+
+@media (max-width: 768px) {
+  .sync-metrics-page .metrics-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .bar-chart {
+    height: 140px;
+    gap: 4px;
+  }
+  .bar-chart-stack {
+    max-width: 26px;
+  }
+}
