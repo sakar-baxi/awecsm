@@ -161,6 +161,40 @@
   border-radius: 0.2rem;
 }
 
+.tools-page .tool-request-preview {
+  margin: var(--space-4) 0;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-muted);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 0.8125rem;
+}
+
+.tools-page .tool-request-preview h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.tools-page .tool-request-preview p {
+  margin: 0;
+  word-break: break-all;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+}
+
+.tools-page .tool-request-meta {
+  margin-top: 0.5rem !important;
+  color: var(--text-muted);
+  font-family: inherit !important;
+}
+
+.tools-page .tool-warning-banner strong {
+  font-weight: 700;
+}
+
 .tools-page .textarea-tall {
   min-height: 100px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;

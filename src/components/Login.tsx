@@ -19,8 +19,19 @@ export default function Login({ onLogin }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Login failed');
+      const text = await res.text();
+      let data: { error?: string; token?: string; user?: { id: string; username: string; role: 'superadmin' | 'user' } };
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error(
+          res.status === 404
+            ? 'Login API not found. Check Vercel deployment and /api routes.'
+            : 'Server returned an invalid response. Try again or contact support.'
+        );
+      }
+      if (!res.ok) throw new Error(data.error || `Login failed (HTTP ${res.status})`);
+      if (!data.token || !data.user) throw new Error('Login response missing token');
       onLogin(data.token, data.user);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Login failed');

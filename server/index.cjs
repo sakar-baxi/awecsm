@@ -23,6 +23,22 @@ const { normalizeToolBody, parseToolResponse, applyEnvironmentToUrl } = require(
 const app = express();
 app.use(express.json());
 
+// Vercel serverless rewrites may deliver /auth/... instead of /api/auth/...
+app.use((req, res, next) => {
+  const pathOnly = (req.path || (req.url || '').split('?')[0] || '');
+  if (!pathOnly.startsWith('/api') && pathOnly !== '/') {
+    const apiRoots = [
+      '/auth', '/users', '/credentials', '/tools', '/health', '/search',
+      '/approvals', '/audit', '/connections', '/vendor-info', '/curl-snippets',
+    ];
+    if (apiRoots.some(root => pathOnly === root || pathOnly.startsWith(root + '/'))) {
+      const qs = (req.url || '').includes('?') ? '?' + (req.url || '').split('?').slice(1).join('?') : '';
+      req.url = '/api' + pathOnly + qs;
+    }
+  }
+  next();
+});
+
 const JWT_SECRET = process.env.JWT_SECRET || 'tartan-renewals-fallback-secret-2026';
 const PORT = process.env.PORT || 3001;
 
@@ -64,6 +80,35 @@ function isDestructiveToolRequest(method, url) {
   return m === 'DELETE' || /data_purge|purge|admin\/app_conn/i.test(u);
 }
 
+function decryptCredentialFields(cred) {
+  try {
+    return { username: decrypt(cred.username), password: decrypt(cred.password) };
+  } catch (err) {
+    const hint =
+      process.env.VERCEL === '1'
+        ? ' Set ENCRYPTION_KEY on Vercel to match when credentials were saved, or re-import credentials after deploy.'
+        : ' Check ENCRYPTION_KEY matches the value used when credentials were encrypted.';
+    throw new Error('Could not decrypt client credential.' + hint);
+  }
+}
+
+const TOOL_FETCH_TIMEOUT_MS = process.env.VERCEL === '1' ? 55000 : 120000;
+
+function extractToolErrorMessage(data) {
+  if (!data) return null;
+  if (typeof data === 'string') return data.slice(0, 500);
+  if (typeof data === 'object') {
+    return (
+      data.message ||
+      data.error ||
+      data.detail ||
+      (Array.isArray(data.non_field_errors) ? data.non_field_errors.join('; ') : null) ||
+      (typeof data.errors === 'string' ? data.errors : null)
+    );
+  }
+  return null;
+}
+
 // ── Init Data ────────────────────────────────────────────────────────
 
 try {
@@ -71,14 +116,21 @@ try {
     // 1. Superadmin
     const users = store.read('users');
     const adminUsername = process.env.SUPERADMIN_USERNAME || 'admin';
-    if (!users.find(u => u.role === 'superadmin')) {
+    const adminPassword = process.env.SUPERADMIN_PASSWORD || 'admin123';
+    let superadmin = users.find(u => u.role === 'superadmin');
+    if (!superadmin) {
       users.push({
         id: deterministicId('superadmin-' + adminUsername),
         username: adminUsername,
-        passwordHash: bcrypt.hashSync(process.env.SUPERADMIN_PASSWORD || 'admin123', 10),
+        passwordHash: bcrypt.hashSync(adminPassword, 10),
         role: 'superadmin',
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       });
+      store.write('users', users);
+    } else if (process.env.SUPERADMIN_PASSWORD) {
+      // Keep Vercel/production password in sync with env (ephemeral /tmp store resets often)
+      superadmin.username = adminUsername;
+      superadmin.passwordHash = bcrypt.hashSync(process.env.SUPERADMIN_PASSWORD, 10);
       store.write('users', users);
     }
 
@@ -161,9 +213,14 @@ try {
       if (!existing) {
         tools.push({ id: deterministicId('tool-' + def.name), ...def, createdAt: new Date().toISOString() });
         toolAdded = true;
-      } else if (existing.curl === '...') {
+      } else if (
+        existing.curl === '...' ||
+        !Array.isArray(existing.variables) ||
+        def.variables.some(v => !existing.variables.includes(v))
+      ) {
         existing.curl = def.curl;
         existing.variables = def.variables;
+        existing.environments = def.environments;
         toolAdded = true;
       }
     });
@@ -173,14 +230,32 @@ try {
 
 // ── AUTH ROUTES ──────────────────────────────────────────────────────
 
+app.get('/api/health/live', (req, res) => {
+  res.json({ ok: true, ts: new Date().toISOString(), vercel: process.env.VERCEL === '1' });
+});
+
 app.post('/api/auth/login', (req, res) => {
-  const { username, password } = req.body;
-  const users = store.read('users');
-  const user = users.find(u => u.username === username);
-  if (!user || !bcrypt.compareSync(password, user.passwordHash)) return res.status(401).json({ error: 'Invalid' });
-  const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
-  logAudit(user.id, user.username, user.role, 'LOGIN', 'User logged in');
-  res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
+  try {
+    const { username, password } = req.body || {};
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password are required' });
+    }
+    const users = store.read('users');
+    const user = users.find(u => u.username === username);
+    if (!user || !bcrypt.compareSync(password, user.passwordHash)) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+    const token = jwt.sign(
+      { id: user.id, username: user.username, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    logAudit(user.id, user.username, user.role, 'LOGIN', 'User logged in');
+    res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ error: 'Login failed', message: err.message });
+  }
 });
 
 app.get('/api/auth/me', authenticate, (req, res) => {
@@ -337,8 +412,18 @@ app.delete('/api/tools/:id', authenticate, (req, res) => {
 
 app.post('/api/tools/execute', authenticate, async (req, res) => {
   const { credId, url, method, headers, body, environment, toolName } = req.body;
+  if (!credId || !url) return res.status(400).json({ error: 'credId and url are required' });
+
   const cred = store.read('credentials').find(c => c.id === credId);
-  if (!cred) return res.status(404).json({ error: 'Not found' });
+  if (!cred) {
+    return res.status(404).json({
+      error: 'Client credential not found',
+      hint:
+        process.env.VERCEL === '1'
+          ? 'Vercel storage is ephemeral. Re-add the client credential or use Import from credentials.csv on the Credentials page.'
+          : undefined,
+    });
+  }
 
   const destructive =
     isDestructiveToolRequest(method, url) ||
@@ -347,24 +432,97 @@ app.post('/api/tools/execute', authenticate, async (req, res) => {
     return res.status(403).json({ error: 'Destructive tool execution requires superadmin role.' });
   }
 
-  const username = decrypt(cred.username);
-  const password = decrypt(cred.password);
+  let username;
+  let password;
+  try {
+    ({ username, password } = decryptCredentialFields(cred));
+  } catch (err) {
+    return res.status(200).json({ ok: false, error: err.message, status: 0 });
+  }
   try {
     const loginRes = await fetch('https://ums.tartanhq.com/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
+      body: JSON.stringify({ username, password }),
     });
-    const loginData = await loginRes.json();
-    let finalUrl = url;
-    if (environment && environment.toLowerCase() !== 'prod') {
-      finalUrl = finalUrl.replace('node.tartanhq.com', environment.toLowerCase() + '-node.tartanhq.com');
+    const loginData = await loginRes.json().catch(() => ({}));
+    if (!loginRes.ok || !loginData.access_token) {
+      return res.status(200).json({
+        ok: false,
+        status: loginRes.status,
+        error: loginData.message || loginData.error || 'UMS login failed for this credential',
+        data: loginData,
+      });
     }
-    const finalHeaders = { ...headers, 'Authorization': 'Bearer ' + loginData.access_token };
-    logAudit(req.user.id, req.user.username, req.user.role, 'EXECUTE_TOOL', `${method || 'GET'} ${finalUrl} for ${cred.clientName}`);
-    const toolRes = await fetch(finalUrl, { method: method || 'GET', headers: finalHeaders, body: body ? JSON.stringify(body) : undefined });
-    res.status(toolRes.status).json(await toolRes.json().catch(() => ({})));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+
+    const finalUrl = applyEnvironmentToUrl(url, environment);
+    const incomingHeaders = headers && typeof headers === 'object' ? { ...headers } : {};
+    delete incomingHeaders.Authorization;
+    delete incomingHeaders.authorization;
+
+    const httpMethod = (method || 'GET').toUpperCase();
+    let requestBody = normalizeToolBody(body);
+    if (requestBody) {
+      try {
+        JSON.parse(requestBody);
+      } catch {
+        return res.status(200).json({
+          ok: false,
+          status: 400,
+          error: 'Request body is not valid JSON. Check corporate / variable substitution.',
+          data: { bodyPreview: String(requestBody).slice(0, 200) },
+        });
+      }
+    }
+    const hasBody = requestBody && !['GET', 'HEAD'].includes(httpMethod);
+
+    const finalHeaders = { ...incomingHeaders };
+    finalHeaders.Authorization = 'Bearer ' + loginData.access_token;
+    if (hasBody && !finalHeaders['Content-Type'] && !finalHeaders['content-type']) {
+      finalHeaders['Content-Type'] = 'application/json';
+    }
+    if (!hasBody) {
+      delete finalHeaders['Content-Type'];
+      delete finalHeaders['content-type'];
+    }
+
+    logAudit(
+      req.user.id,
+      req.user.username,
+      req.user.role,
+      'EXECUTE_TOOL',
+      `${httpMethod} ${finalUrl} for ${cred.clientName}${toolName ? ' (' + toolName + ')' : ''}`
+    );
+
+    const toolRes = await fetch(finalUrl, {
+      method: httpMethod,
+      headers: finalHeaders,
+      body: hasBody ? requestBody : undefined,
+      signal: AbortSignal.timeout(TOOL_FETCH_TIMEOUT_MS),
+    });
+
+    const responseText = await toolRes.text();
+    const data = parseToolResponse(responseText, toolRes.headers.get('content-type'));
+
+    res.status(200).json({
+      ok: toolRes.ok,
+      status: toolRes.status,
+      statusText: toolRes.statusText,
+      url: finalUrl,
+      method: httpMethod,
+      data,
+      ...(toolRes.ok ? {} : { error: extractToolErrorMessage(data) || toolRes.statusText }),
+    });
+  } catch (err) {
+    const timedOut = err.name === 'TimeoutError' || /aborted|timeout/i.test(err.message || '');
+    res.status(200).json({
+      ok: false,
+      error: timedOut
+        ? 'Request timed out. Initial sync can take up to 60s on Vercel — retry, or run Tools from local npm run dev.'
+        : err.message,
+      status: 0,
+    });
+  }
 });
 
 // ── AUDIT LOG ────────────────────────────────────────────────────────
@@ -389,9 +547,24 @@ app.get('/api/vendor-info/:credId', authenticate, async (req, res) => {
       headers: { 'Authorization': 'Bearer ' + loginData.access_token }
     });
     const userData = await userRes.json();
+    const vendorOrgId =
+      userData.vendor_org_id ||
+      userData.vendor_org ||
+      userData.vendorOrgId ||
+      userData.org_id ||
+      userData.organisation_id ||
+      userData.Organisation?.id ||
+      userData.organisation?.id ||
+      null;
     res.json({
-      vendor_org_id: userData.vendor_org_id || userData.org_id || userData.Organisation?.id || null,
-      org_name: userData.org_name || userData.name || userData.Organisation?.org_name || null,
+      vendor_org_id: vendorOrgId != null ? String(vendorOrgId) : null,
+      org_name:
+        userData.org_name ||
+        userData.name ||
+        userData.Organisation?.org_name ||
+        userData.organisation?.name ||
+        null,
+      raw: process.env.NODE_ENV === 'development' ? userData : undefined,
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1854,33 +2027,39 @@ app.delete('/api/curl-snippets/:id', authenticate, (req, res) => {
   }
 });
 
-// Load CSV search cache on startup
-csvSearchStore.loadFromDisk();
+// Background jobs — local server only (avoid Vercel cold-start timeouts)
+if (process.env.VERCEL !== '1') {
+  csvSearchStore.loadFromDisk();
 
-// Schedule daily check (once every 24 hours)
-setInterval(() => {
-  console.log('Running scheduled daily global sync health check...');
-  runGlobalCheckInBackground().catch(console.error);
-}, 24 * 60 * 60 * 1000);
-
-// Run initial check after 10 seconds of startup if file doesn't exist
-setTimeout(() => {
-  const existing = readStoreObject('health_status', null);
-  if (!existing || !existing.lastRun) {
-    console.log('No health status found on startup. Triggering initial health scan...');
+  setInterval(() => {
+    console.log('Running scheduled daily global sync health check...');
     runGlobalCheckInBackground().catch(console.error);
-  }
-  const searchIdx = readConnectionIndex();
-  if (!searchIdx.entries || searchIdx.entries.length === 0) {
-    console.log('No connection search CSV index found. Triggering initial index build...');
-    runSearchIndexInBackground().catch(console.error);
-  }
-}, 10000);
+  }, 24 * 60 * 60 * 1000);
 
-setInterval(() => {
-  console.log('Running scheduled daily connection search reindex...');
-  runSearchIndexInBackground().catch(console.error);
-}, 24 * 60 * 60 * 1000);
+  setTimeout(() => {
+    const existing = readStoreObject('health_status', null);
+    if (!existing || !existing.lastRun) {
+      console.log('No health status found on startup. Triggering initial health scan...');
+      runGlobalCheckInBackground().catch(console.error);
+    }
+    const searchIdx = readConnectionIndex();
+    if (!searchIdx.entries || searchIdx.entries.length === 0) {
+      console.log('No connection search CSV index found. Triggering initial index build...');
+      runSearchIndexInBackground().catch(console.error);
+    }
+  }, 10000);
+
+  setInterval(() => {
+    console.log('Running scheduled daily connection search reindex...');
+    runSearchIndexInBackground().catch(console.error);
+  }, 24 * 60 * 60 * 1000);
+} else {
+  try {
+    csvSearchStore.loadFromDisk();
+  } catch (e) {
+    console.error('CSV index load skipped on Vercel:', e.message);
+  }
+}
 
 const distPath = path.join(__dirname, '..', 'dist');
 if (process.env.NODE_ENV === 'production' && fs.existsSync(distPath)) {

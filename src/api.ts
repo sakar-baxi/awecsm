@@ -63,13 +63,22 @@ async function request<T = unknown>(url: string, opts: RequestInit = {}): Promis
     json = (text ? JSON.parse(text) : {}) as T;
   } catch {
     if (text.trim().startsWith('<')) {
-      throw new Error('API route not found. Ensure the backend server is running on port 3001.');
+      if (res.status === 504 || res.status === 502) {
+        throw new Error(
+          'Server timed out (HTTP ' + res.status + '). Initial sync can take up to 60s on Vercel — retry or use local npm run dev.'
+        );
+      }
+      throw new Error(
+        res.status >= 500
+          ? 'Server error (HTTP ' + res.status + '). The API may have timed out or crashed.'
+          : 'API route not found. Ensure the backend server is running and deployed correctly.'
+      );
     }
     throw new Error('Invalid server response');
   }
   if (!res.ok) {
-    const err = json as { error?: string };
-    throw new Error(err?.error || 'Request failed');
+    const err = json as { error?: string; hint?: string };
+    throw new Error([err?.error, err?.hint].filter(Boolean).join(' — ') || 'Request failed');
   }
   return json;
 }

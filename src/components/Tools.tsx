@@ -129,21 +129,43 @@ export default function Tools({ user }: Props) {
       return;
     }
 
+    const parsed = parseCurl(tool.curl);
+    if (!parsed.url) {
+      setExecError('Could not parse URL from cURL. Check the saved command.');
+      return;
+    }
+
+    const replaced = applyCurlReplacements(parsed, {
+      ...variableValues,
+      vendor_org_id: vendorInfo?.vendor_org_id || '',
+      org_id: selectedCorpId,
+      token: '',
+    });
+
+    if (replaced.url.includes('{{')) {
+      setExecError('Some variables were not replaced. Check vendor org and corporate selection.');
+      return;
+    }
+
+    const destructive = /purge|data purge/i.test(tool.name) || /data_purge/i.test(tool.curl);
+    if (destructive) {
+      const corpName = corporates.find(c => c.id === selectedCorpId)?.name || selectedCorpId;
+      const confirmed = window.confirm(
+        `Data Purge is irreversible.\n\n` +
+          `Client: ${creds.find(c => c.id === selectedCredId)?.clientName}\n` +
+          `Corporate: ${corpName}\n` +
+          `Vendor org: ${vendorInfo?.vendor_org_id}\n` +
+          `Client org: ${selectedCorpId}\n\n` +
+          `Proceed with DELETE request?`
+      );
+      if (!confirmed) return;
+    }
+
     setExecuting(true);
     setExecResult(null);
     setExecError('');
 
     try {
-      const parsed = parseCurl(tool.curl);
-      if (!parsed.url) throw new Error('Could not parse URL from cURL. Check the saved command.');
-
-      const replaced = applyCurlReplacements(parsed, {
-        ...variableValues,
-        vendor_org_id: vendorInfo?.vendor_org_id || '',
-        org_id: selectedCorpId,
-        token: '',
-      });
-
       const result = await api.executeTool(
         selectedCredId,
         replaced.url,
@@ -156,7 +178,12 @@ export default function Tools({ user }: Props) {
 
       setExecResult(result);
       if (result.ok === false) {
-        setExecError(result.error || `API returned HTTP ${result.status || 'error'}`);
+        const data = result.data as { message?: string; error?: string; detail?: string; non_field_errors?: string[] } | undefined;
+        const apiMsg =
+          result.error ||
+          (data && (data.message || data.error || data.detail)) ||
+          (data?.non_field_errors?.join('; '));
+        setExecError(apiMsg || `API returned HTTP ${result.status || 'error'}`);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Execution failed';
@@ -166,6 +193,25 @@ export default function Tools({ user }: Props) {
       setExecuting(false);
     }
   };
+
+  const buildPreview = () => {
+    const tool = tools.find(t => t.id === activeToolId);
+    if (!tool) return null;
+    try {
+      const parsed = parseCurl(tool.curl);
+      const replaced = applyCurlReplacements(parsed, {
+        ...variableValues,
+        vendor_org_id: vendorInfo?.vendor_org_id || '{{vendor_org_id}}',
+        org_id: selectedCorpId || '{{org_id}}',
+        token: '',
+      });
+      return replaced;
+    } catch {
+      return null;
+    }
+  };
+
+  const requestPreview = buildPreview();
 
   const activeTool = tools.find(t => t.id === activeToolId);
   const isDestructive = activeTool && (/purge|data purge/i.test(activeTool.name) || /data_purge/i.test(activeTool.curl));
@@ -267,7 +313,13 @@ export default function Tools({ user }: Props) {
 
                 {isDestructive && user.role !== 'superadmin' && (
                   <div className="tool-warning-banner">
-                    This is a destructive tool. Only superadmins can execute it.
+                    Data Purge requires a <strong>superadmin</strong> account. Log in as superadmin to execute.
+                  </div>
+                )}
+
+                {isDestructive && user.role === 'superadmin' && (
+                  <div className="tool-warning-banner">
+                    Destructive action — permanently purges data for the selected corporate. Double-check vendor org and client org below.
                   </div>
                 )}
 
@@ -316,6 +368,18 @@ export default function Tools({ user }: Props) {
                         </div>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {requestPreview && (selectedCredId || activeTool.variables.length > 0) && (
+                  <div className="tool-request-preview">
+                    <h4>Request preview</h4>
+                    <p><strong>{requestPreview.method}</strong> {requestPreview.url}</p>
+                    {isDestructive && vendorInfo?.vendor_org_id && selectedCorpId && (
+                      <p className="tool-request-meta">
+                        vendor_org={vendorInfo.vendor_org_id} · client_org={selectedCorpId}
+                      </p>
+                    )}
                   </div>
                 )}
 
