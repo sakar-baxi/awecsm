@@ -264,8 +264,21 @@ export default function GlobalSearch({ onOpenCurlLibrary }: { onOpenCurlLibrary?
     if (!file) return;
     setImportingCsv(true);
     try {
-      const csvText = await file.text();
-      await api.importSearchCsv(csvText, importMode);
+      const LARGE_FILE_BYTES = 4 * 1024 * 1024;
+      if (file.size > LARGE_FILE_BYTES) {
+        if (typeof CompressionStream !== 'undefined') {
+          const compressedStream = file.stream().pipeThrough(new CompressionStream('gzip'));
+          const compressedBlob = await new Response(compressedStream).blob();
+          await api.importSearchCsvBlob(compressedBlob, importMode, { gzip: true });
+        } else {
+          throw new Error(
+            'File is too large for direct upload on Vercel. Use a Chromium browser for gzip upload, or split CSV into smaller files.'
+          );
+        }
+      } else {
+        const csvText = await file.text();
+        await api.importSearchCsv(csvText, importMode);
+      }
       loadStatus();
       runSearch(false);
     } catch (err) {

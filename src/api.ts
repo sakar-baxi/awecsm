@@ -190,6 +190,19 @@ export const api = {
       headers: { 'Content-Type': 'text/csv' },
       body: csvText,
     }),
+  importSearchCsvBlob: (
+    payload: Blob | ArrayBuffer,
+    mode: 'replace' | 'merge' = 'replace',
+    opts?: { gzip?: boolean }
+  ): Promise<any> =>
+    request('/api/search/import-csv?mode=' + mode, {
+      method: 'POST',
+      headers: {
+        'Content-Type': opts?.gzip ? 'application/octet-stream' : 'text/csv',
+        ...(opts?.gzip ? { 'Content-Encoding': 'gzip' } : {}),
+      },
+      body: payload as BodyInit,
+    }),
 
   // Curl snippet repository (encrypted at rest; curl revealed on demand)
   searchCurlSnippets: (params: {

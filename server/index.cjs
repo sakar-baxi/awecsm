@@ -7,6 +7,7 @@ const uuidv4 = () => crypto.randomUUID();
 const deterministicId = (str) => crypto.createHash('md5').update(str).digest('hex');
 const path = require('path');
 const fs = require('fs');
+const zlib = require('zlib');
 const store = require('./store.cjs');
 const { encrypt, decrypt } = require('./crypto.cjs');
 const {
@@ -1847,9 +1848,16 @@ app.get('/api/search/status', authenticate, (req, res) => {
   });
 });
 
-app.post('/api/search/import-csv', authenticate, express.text({ type: '*/*', limit: '30mb' }), (req, res) => {
+app.post('/api/search/import-csv', authenticate, express.raw({ type: '*/*', limit: '30mb' }), (req, res) => {
   try {
-    const csvText = typeof req.body === 'string' ? req.body : '';
+    const bodyBuf = Buffer.isBuffer(req.body)
+      ? req.body
+      : Buffer.from(typeof req.body === 'string' ? req.body : '', 'utf8');
+    let csvText = bodyBuf.toString('utf8');
+    const isGzip = String(req.headers['content-encoding'] || '').toLowerCase().includes('gzip');
+    if (isGzip) {
+      csvText = zlib.gunzipSync(bodyBuf).toString('utf8');
+    }
     if (!csvText.trim()) {
       return res.status(400).json({ error: 'CSV payload is empty' });
     }
