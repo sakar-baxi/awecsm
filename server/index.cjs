@@ -128,15 +128,17 @@ try {
       });
       store.write('users', users);
     } else if (process.env.SUPERADMIN_PASSWORD) {
-      // Keep Vercel/production password in sync with env (ephemeral /tmp store resets often)
       superadmin.username = adminUsername;
-      superadmin.passwordHash = bcrypt.hashSync(process.env.SUPERADMIN_PASSWORD, 10);
-      store.write('users', users);
+      const matches = bcrypt.compareSync(process.env.SUPERADMIN_PASSWORD, superadmin.passwordHash);
+      if (!matches) {
+        superadmin.passwordHash = bcrypt.hashSync(process.env.SUPERADMIN_PASSWORD, 10);
+        store.write('users', users);
+      }
     }
 
-    // 2. Credentials
+    // 2. Credentials — seed defaults locally only (Vercel: add via UI; avoids 21 encrypt ops on cold start)
     const creds = store.read('credentials');
-    if (creds.length === 0) {
+    if (creds.length === 0 && process.env.VERCEL !== '1') {
       const defaults = [
         ["Prosperr.io","ankur@prosperr.io","4IOISi7E"],
         ["MMT","sakar+mybizfd5ece","2lrMvXlT"],
@@ -1532,6 +1534,12 @@ app.get('/api/health/global-status', authenticate, (req, res) => {
 
 app.post('/api/health/global-check', authenticate, (req, res) => {
   logAudit(req.user.id, req.user.username, req.user.role, 'TRIGGER_GLOBAL_HEALTH', 'Triggered global network health scan');
+  if (process.env.VERCEL === '1') {
+    return res.status(503).json({
+      error: 'Global network scan exceeds serverless time limits. Run locally or scan one client at a time via Client History.',
+      running: false,
+    });
+  }
   if (!globalCheckState.running) {
     runGlobalCheckInBackground().catch(console.error);
   }
@@ -1558,6 +1566,23 @@ app.get('/api/health/sync-metrics', authenticate, (req, res) => {
   }
 
   if (!syncMetricsState.running) {
+    if (process.env.VERCEL === '1') {
+      return res.json({
+        running: false,
+        days,
+        granularity,
+        message: 'Click Refresh to compute sync metrics (not auto-started on serverless).',
+        ...(cached || {
+          summary: null,
+          timeSeries: [],
+          employeeTimeSeries: [],
+          topFailureReasons: [],
+          hrmsPerformance: [],
+          clientHealth: [],
+        }),
+        ...withTaskTiming(syncMetricsState),
+      });
+    }
     runSyncMetricsInBackground(days, granularity).catch(console.error);
   }
 
@@ -1570,6 +1595,12 @@ app.get('/api/health/sync-metrics', authenticate, (req, res) => {
 app.post('/api/health/sync-metrics/refresh', authenticate, (req, res) => {
   const days = Math.min(365, Math.max(7, parseInt(req.body?.days, 10) || 30));
   const granularity = req.body?.granularity || 'daily';
+  if (process.env.VERCEL === '1') {
+    return res.status(503).json({
+      error: 'Sync metrics refresh exceeds serverless time limits. Run locally for full metrics.',
+      running: false,
+    });
+  }
   if (!syncMetricsState.running) {
     runSyncMetricsInBackground(days, granularity).catch(console.error);
   }
@@ -1816,8 +1847,46 @@ app.get('/api/search/status', authenticate, (req, res) => {
   });
 });
 
+app.post('/api/search/import-csv', authenticate, express.text({ type: '*/*', limit: '30mb' }), (req, res) => {
+  try {
+    const csvText = typeof req.body === 'string' ? req.body : '';
+    if (!csvText.trim()) {
+      return res.status(400).json({ error: 'CSV payload is empty' });
+    }
+    const mode = req.query.mode === 'merge' ? 'merge' : 'replace';
+    const result = csvSearchStore.importLatestCsvText(csvText, {
+      mode,
+      batchId: `manual-upload-${Date.now()}`,
+    });
+    logAudit(
+      req.user.id,
+      req.user.username,
+      req.user.role,
+      'IMPORT_SEARCH_CSV',
+      `Imported search CSV (${mode}): ${result.imported} rows`
+    );
+    res.json({
+      ok: true,
+      mode,
+      imported: result.imported,
+      merged: result.merged,
+      skipped: result.skipped,
+      connectionCount: result.index.connectionCount,
+      lastIndexedAt: result.index.lastIndexedAt,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to import CSV' });
+  }
+});
+
 app.post('/api/search/reindex', authenticate, (req, res) => {
   logAudit(req.user.id, req.user.username, req.user.role, 'TRIGGER_SEARCH_REINDEX', 'Triggered connection search reindex');
+  if (process.env.VERCEL === '1') {
+    return res.status(503).json({
+      error: 'Full search indexing exceeds serverless time limits. Run the app locally (`npm run dev`) for indexing, or use per-client tools on Vercel.',
+      running: false,
+    });
+  }
   if (!searchIndexState.running) {
     runSearchIndexInBackground().catch(console.error);
   }
@@ -1829,6 +1898,16 @@ app.get('/api/search', authenticate, (req, res) => {
   const entries = index.entries || [];
 
   if (entries.length === 0 && !searchIndexState.running) {
+    if (process.env.VERCEL === '1') {
+      return res.json({
+        total: 0,
+        results: [],
+        indexing: false,
+        message: 'Search index empty. Click Fresh sync to build the index (manual only on serverless).',
+        filterOptions: index.filterOptions || { clients: [], hrms: [], applicationStatuses: [], healthStatuses: [] },
+        ...withTaskTiming(searchIndexState),
+      });
+    }
     runSearchIndexInBackground().catch(console.error);
     return res.json({
       total: 0,
@@ -2053,12 +2132,6 @@ if (process.env.VERCEL !== '1') {
     console.log('Running scheduled daily connection search reindex...');
     runSearchIndexInBackground().catch(console.error);
   }, 24 * 60 * 60 * 1000);
-} else {
-  try {
-    csvSearchStore.loadFromDisk();
-  } catch (e) {
-    console.error('CSV index load skipped on Vercel:', e.message);
-  }
 }
 
 const distPath = path.join(__dirname, '..', 'dist');

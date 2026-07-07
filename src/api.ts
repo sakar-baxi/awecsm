@@ -54,7 +54,9 @@ async function request<T = unknown>(url: string, opts: RequestInit = {}): Promis
   const token = getToken();
   const headers: Record<string, string> = { ...(opts.headers as Record<string, string> || {}) };
   if (token) headers['Authorization'] = 'Bearer ' + token;
-  if (opts.body) headers['Content-Type'] = 'application/json';
+  if (opts.body && !headers['Content-Type'] && !headers['content-type']) {
+    headers['Content-Type'] = 'application/json';
+  }
   const res = await fetch(url, { ...opts, headers });
   if (res.status === 401) { clearAuth(); window.location.reload(); throw new Error('Session expired'); }
   const text = await res.text();
@@ -182,6 +184,12 @@ export const api = {
       return res.blob();
     });
   },
+  importSearchCsv: (csvText: string, mode: 'replace' | 'merge' = 'replace'): Promise<any> =>
+    request('/api/search/import-csv?mode=' + mode, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/csv' },
+      body: csvText,
+    }),
 
   // Curl snippet repository (encrypted at rest; curl revealed on demand)
   searchCurlSnippets: (params: {

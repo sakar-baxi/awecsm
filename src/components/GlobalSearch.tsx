@@ -115,6 +115,8 @@ export default function GlobalSearch({ onOpenCurlLibrary }: { onOpenCurlLibrary?
   const [offset, setOffset] = useState(0);
   const PAGE_SIZE = 50;
   const [reindexing, setReindexing] = useState(false);
+  const [importingCsv, setImportingCsv] = useState(false);
+  const [importMode, setImportMode] = useState<'replace' | 'merge'>('merge');
   const [showRaw, setShowRaw] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -258,6 +260,21 @@ export default function GlobalSearch({ onOpenCurlLibrary }: { onOpenCurlLibrary?
     URL.revokeObjectURL(url);
   };
 
+  const handleImportCsv = async (file: File | null) => {
+    if (!file) return;
+    setImportingCsv(true);
+    try {
+      const csvText = await file.text();
+      await api.importSearchCsv(csvText, importMode);
+      loadStatus();
+      runSearch(false);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'CSV import failed');
+    } finally {
+      setImportingCsv(false);
+    }
+  };
+
   const formatDate = (d?: string | null) => {
     if (!d) return '—';
     try {
@@ -295,6 +312,29 @@ export default function GlobalSearch({ onOpenCurlLibrary }: { onOpenCurlLibrary?
           <button type="button" className="btn btn-secondary" onClick={() => downloadCsv('latest')}>
             Download CSV
           </button>
+          <select
+            value={importMode}
+            onChange={e => setImportMode(e.target.value as 'replace' | 'merge')}
+            className="token-input"
+            style={{ minWidth: '8rem', background: '#fff' }}
+          >
+            <option value="merge">Import: Merge</option>
+            <option value="replace">Import: Replace</option>
+          </select>
+          <label className="btn btn-secondary" style={{ cursor: importingCsv ? 'not-allowed' : 'pointer', opacity: importingCsv ? 0.6 : 1 }}>
+            {importingCsv ? 'Importing CSV…' : 'Upload CSV'}
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              style={{ display: 'none' }}
+              disabled={importingCsv}
+              onChange={e => {
+                const file = e.target.files?.[0] || null;
+                e.currentTarget.value = '';
+                handleImportCsv(file);
+              }}
+            />
+          </label>
         </div>
         <div className="search-index-meta">
           {indexMeta.connectionCount != null && (

@@ -127,6 +127,23 @@ function readCsvFile(filePath, headers) {
   return rows;
 }
 
+function readCsvText(text, headers) {
+  if (!text || !String(text).trim()) return [];
+  const lines = String(text).trim().split(/\r?\n/);
+  const start = lines[0] === headers.join(',') ? 1 : 0;
+  const rows = [];
+  for (let i = start; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    const cols = parseCsvLine(lines[i]);
+    const row = {};
+    headers.forEach((h, idx) => {
+      row[h] = cols[idx] != null ? cols[idx] : '';
+    });
+    rows.push(row);
+  }
+  return rows;
+}
+
 function writeCsvFile(filePath, headers, rows) {
   ensureDataDir();
   const lines = [headers.join(',')];
@@ -342,12 +359,47 @@ function migrateFromJson(jsonIndex) {
   });
 }
 
+function importLatestCsvText(csvText, options = {}) {
+  const rows = readCsvText(csvText, CONNECTION_HEADERS);
+  if (!rows.length) {
+    return { imported: 0, merged: 0, skipped: 0, index: getIndex() };
+  }
+
+  const incomingEntries = rows.map(csvRowToEntry).filter(e => e && e.id && e.connectionId);
+  const mode = options.mode === 'merge' ? 'merge' : 'replace';
+
+  let finalEntries = incomingEntries;
+  let merged = 0;
+  if (mode === 'merge') {
+    const current = getIndex().entries || [];
+    const map = new Map(current.map(e => [e.id, e]));
+    incomingEntries.forEach(e => {
+      if (map.has(e.id)) merged++;
+      map.set(e.id, e);
+    });
+    finalEntries = Array.from(map.values());
+  }
+
+  const batchId = options.batchId || `import-${Date.now()}`;
+  const persisted = persistIndex(finalEntries, {
+    batchId,
+    clientCount: new Set(finalEntries.map(e => e.clientId)).size,
+  });
+  return {
+    imported: incomingEntries.length,
+    merged,
+    skipped: rows.length - incomingEntries.length,
+    index: persisted,
+  };
+}
+
 module.exports = {
   loadFromDisk,
   getIndex,
   persistIndex,
   getCsvPaths,
   migrateFromJson,
+  importLatestCsvText,
   buildFilterOptions,
   LATEST_CSV,
   HISTORY_CSV,
