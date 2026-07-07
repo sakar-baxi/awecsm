@@ -94,6 +94,9 @@ function decryptCredentialFields(cred) {
 }
 
 const TOOL_FETCH_TIMEOUT_MS = process.env.VERCEL === '1' ? 55000 : 120000;
+const UMS_LOGIN_TIMEOUT_MS = process.env.VERCEL === '1' ? 12000 : 20000;
+const TOKEN_CACHE_TTL_MS = 12 * 60 * 1000;
+const credTokenCache = new Map();
 
 function extractToolErrorMessage(data) {
   if (!data) return null;
@@ -108,6 +111,28 @@ function extractToolErrorMessage(data) {
     );
   }
   return null;
+}
+
+async function getAuthTokenForCredential(cred) {
+  const now = Date.now();
+  const cached = credTokenCache.get(cred.id);
+  if (cached && cached.expiresAt > now) {
+    return cached.token;
+  }
+  const { username, password } = decryptCredentialFields(cred);
+  const loginRes = await fetch('https://ums.tartanhq.com/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+    signal: AbortSignal.timeout(UMS_LOGIN_TIMEOUT_MS),
+  });
+  const loginData = await loginRes.json().catch(() => ({}));
+  if (!loginRes.ok || !loginData.access_token) {
+    const message = loginData?.error || loginData?.message || 'UMS login failed';
+    throw new Error(message);
+  }
+  credTokenCache.set(cred.id, { token: loginData.access_token, expiresAt: now + TOKEN_CACHE_TTL_MS });
+  return loginData.access_token;
 }
 
 // ── Init Data ────────────────────────────────────────────────────────
@@ -378,16 +403,9 @@ app.get('/api/credentials/:id/reveal', authenticate, (req, res) => {
 app.get('/api/connections/:credId', authenticate, async (req, res) => {
   const cred = store.read('credentials').find(c => c.id === req.params.credId);
   if (!cred) return res.status(404).json({ error: 'Not found' });
-  const username = decrypt(cred.username);
-  const password = decrypt(cred.password);
   try {
-    const loginRes = await fetch('https://ums.tartanhq.com/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
-    });
-    const loginData = await loginRes.json();
-    const connections = await fetchAllConnections(loginData.access_token);
+    const token = await getAuthTokenForCredential(cred);
+    const connections = await fetchAllConnections(token);
     res.json({
       data: connections,
       pageInfo: { total: connections.length, allPagesFetched: true },
@@ -435,28 +453,8 @@ app.post('/api/tools/execute', authenticate, async (req, res) => {
     return res.status(403).json({ error: 'Destructive tool execution requires superadmin role.' });
   }
 
-  let username;
-  let password;
   try {
-    ({ username, password } = decryptCredentialFields(cred));
-  } catch (err) {
-    return res.status(200).json({ ok: false, error: err.message, status: 0 });
-  }
-  try {
-    const loginRes = await fetch('https://ums.tartanhq.com/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
-    });
-    const loginData = await loginRes.json().catch(() => ({}));
-    if (!loginRes.ok || !loginData.access_token) {
-      return res.status(200).json({
-        ok: false,
-        status: loginRes.status,
-        error: loginData.message || loginData.error || 'UMS login failed for this credential',
-        data: loginData,
-      });
-    }
+    const token = await getAuthTokenForCredential(cred);
 
     const finalUrl = applyEnvironmentToUrl(url, environment);
     const incomingHeaders = headers && typeof headers === 'object' ? { ...headers } : {};
@@ -480,7 +478,7 @@ app.post('/api/tools/execute', authenticate, async (req, res) => {
     const hasBody = requestBody && !['GET', 'HEAD'].includes(httpMethod);
 
     const finalHeaders = { ...incomingHeaders };
-    finalHeaders.Authorization = 'Bearer ' + loginData.access_token;
+    finalHeaders.Authorization = 'Bearer ' + token;
     if (hasBody && !finalHeaders['Content-Type'] && !finalHeaders['content-type']) {
       finalHeaders['Content-Type'] = 'application/json';
     }
@@ -537,17 +535,10 @@ app.get('/api/audit', authenticate, (req, res) => res.json(store.read('audit').r
 app.get('/api/vendor-info/:credId', authenticate, async (req, res) => {
   const cred = store.read('credentials').find(c => c.id === req.params.credId);
   if (!cred) return res.status(404).json({ error: 'Not found' });
-  const username = decrypt(cred.username);
-  const password = decrypt(cred.password);
   try {
-    const loginRes = await fetch('https://ums.tartanhq.com/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
-    });
-    const loginData = await loginRes.json();
+    const token = await getAuthTokenForCredential(cred);
     const userRes = await fetch('https://node.tartanhq.com/api/dashboard/user/', {
-      headers: { 'Authorization': 'Bearer ' + loginData.access_token }
+      headers: { 'Authorization': 'Bearer ' + token }
     });
     const userData = await userRes.json();
     const vendorOrgId =
@@ -820,6 +811,17 @@ async function fetchAllSyncLogs(token, fromDate, toDate, maxPages = 20) {
   return allLogs;
 }
 
+function groupLogsByConnection(logs) {
+  const map = new Map();
+  for (const l of logs || []) {
+    const id = l.connection_id;
+    if (!id) continue;
+    if (!map.has(id)) map.set(id, []);
+    map.get(id).push(l);
+  }
+  return map;
+}
+
 function classifyConnectionHealth(totalSyncs, successSyncs, failedSyncs) {
   if (totalSyncs === 0) return 'no_sync';
   if (successSyncs === 0 && failedSyncs > 0) return 'failed';
@@ -1073,15 +1075,10 @@ async function runSyncMetricsInBackground(days, granularity) {
     for (const cred of credentials) {
       syncMetricsState.currentClient = cred.clientName;
       try {
-        const loginRes = await fetch('https://ums.tartanhq.com/api/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: decrypt(cred.username), password: decrypt(cred.password) }),
-        });
-        if (!loginRes.ok) throw new Error('UMS login failed');
-        const { access_token: token } = await loginRes.json();
+        const token = await getAuthTokenForCredential(cred);
         const connections = await fetchAllConnections(token);
         const logs = await fetchAllSyncLogs(token, fromDate, toDate, Math.min(50, Math.ceil(days / 7) + 5));
+        const logsByConnection = groupLogsByConnection(logs);
         totalConnections += connections.length;
 
         let clientTotalSyncs = 0;
@@ -1092,7 +1089,7 @@ async function runSyncMetricsInBackground(days, granularity) {
         connections.forEach(conn => {
           const connId = conn.connection_id || conn.id;
           const hrms = getHrmsFromConnection(conn);
-          const connLogs = logs.filter(l => l.connection_id === connId);
+          const connLogs = logsByConnection.get(connId) || [];
           const pm = buildPeriodMetrics(conn, connLogs, dates);
           
           totalSyncs += pm.totalSyncs;
@@ -1264,21 +1261,13 @@ async function runGlobalCheckInBackground() {
       globalCheckState.currentClient = cred.clientName;
       
       try {
-        const username = decrypt(cred.username);
-        const password = decrypt(cred.password);
+        const token = await getAuthTokenForCredential(cred);
         
-        // Ums login
-        const loginRes = await fetch('https://ums.tartanhq.com/api/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password })
-        });
-        if (!loginRes.ok) throw new Error('UMS Login failed');
-        const loginData = await loginRes.json();
-        
-        const activeConnections = await fetchAllConnections(loginData.access_token);
-        const logs = await fetchAllSyncLogs(loginData.access_token, fromDate, toDate, 15);
-        const logs30 = await fetchAllSyncLogs(loginData.access_token, fromDate30, toDate, 35);
+        const activeConnections = await fetchAllConnections(token);
+        const logs = await fetchAllSyncLogs(token, fromDate, toDate, 15);
+        const logs30 = await fetchAllSyncLogs(token, fromDate30, toDate, 35);
+        const logsByConnection = groupLogsByConnection(logs);
+        const logs30ByConnection = groupLogsByConnection(logs30);
 
         const dates = [];
         let curr = new Date(fromDate);
@@ -1295,7 +1284,7 @@ async function runGlobalCheckInBackground() {
 
         activeConnections.forEach(conn => {
           const connId = conn.connection_id || conn.id;
-          const connLogs = logs.filter(l => l.connection_id === connId);
+          const connLogs = logsByConnection.get(connId) || [];
           const built = buildConnectionHealth(conn, connLogs, dates);
           const status = built.overallStatus;
 
@@ -1304,7 +1293,7 @@ async function runGlobalCheckInBackground() {
           else if (status === 'failed') clientFailed++;
           else if (status === 'no_sync') clientNoSync++;
 
-          const connLogs30 = logs30.filter(l => l.connection_id === connId);
+          const connLogs30 = logs30ByConnection.get(connId) || [];
           const metrics30d = buildPeriodMetrics(conn, connLogs30, dates30);
 
           allHrmsConnections.push({
@@ -1444,20 +1433,11 @@ app.get('/api/health/client/:credId', authenticate, async (req, res) => {
   if (!cred) return res.status(404).json({ error: 'Client not found' });
   
   try {
-    const username = decrypt(cred.username);
-    const password = decrypt(cred.password);
-    
-    const loginRes = await fetch('https://ums.tartanhq.com/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
-    });
-    if (!loginRes.ok) throw new Error('UMS Login failed');
-    const loginData = await loginRes.json();
-    const token = loginData.access_token;
+    const token = await getAuthTokenForCredential(cred);
     
     const activeConnections = await fetchAllConnections(token);
     const allLogs = await fetchAllSyncLogs(token, from_date, to_date, 25);
+    const logsByConnection = groupLogsByConnection(allLogs);
     const logsMayBeTruncated = allLogs.length >= 2500;
 
     const dates = [];
@@ -1475,7 +1455,7 @@ app.get('/api/health/client/:credId', authenticate, async (req, res) => {
 
     const processedConnections = activeConnections.map(conn => {
       const connId = conn.connection_id || conn.id;
-      const connLogs = allLogs.filter(l => l.connection_id === connId);
+      const connLogs = logsByConnection.get(connId) || [];
       const built = buildConnectionHealth(conn, connLogs, dates);
 
       if (built.overallStatus === 'healthy') healthyCount++;
@@ -1757,23 +1737,19 @@ async function runSearchIndexInBackground() {
     for (const cred of credentials) {
       searchIndexState.currentClient = cred.clientName;
       try {
-        const loginRes = await fetch('https://ums.tartanhq.com/api/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: decrypt(cred.username), password: decrypt(cred.password) }),
-        });
-        if (!loginRes.ok) throw new Error('UMS login failed');
-        const { access_token: token } = await loginRes.json();
+        const token = await getAuthTokenForCredential(cred);
 
         const vendor = await fetchVendorInfo(token);
         const connections = await fetchAllConnections(token);
         const logs7 = await fetchAllSyncLogs(token, fromDate7, toDate, 15);
         const logs30 = await fetchAllSyncLogs(token, fromDate30, toDate, 30);
+        const logs7ByConnection = groupLogsByConnection(logs7);
+        const logs30ByConnection = groupLogsByConnection(logs30);
 
         const prepared = connections.map(conn => {
           const connId = conn.connection_id || conn.id;
-          const connLogs7 = logs7.filter(l => l.connection_id === connId);
-          const connLogs30 = logs30.filter(l => l.connection_id === connId);
+          const connLogs7 = logs7ByConnection.get(connId) || [];
+          const connLogs30 = logs30ByConnection.get(connId) || [];
           const health7d = buildConnectionHealth(conn, connLogs7, dates7);
           const health30d = buildPeriodMetrics(conn, connLogs30, dates30);
           const recentSyncLogs = [...connLogs30]
@@ -1990,13 +1966,7 @@ app.get('/api/search/connection/:connectionId', authenticate, async (req, res) =
     try {
       const cred = store.read('credentials').find(c => c.id === entry.clientId);
       if (cred) {
-        const loginRes = await fetch('https://ums.tartanhq.com/api/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: decrypt(cred.username), password: decrypt(cred.password) }),
-        });
-        if (loginRes.ok) {
-          const { access_token: token } = await loginRes.json();
+        const token = await getAuthTokenForCredential(cred);
           const toDate = new Date().toISOString().split('T')[0];
           const fromDate30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
           const dates30 = [];
@@ -2010,7 +1980,8 @@ app.get('/api/search/connection/:connectionId', authenticate, async (req, res) =
           const freshConn = connections.find(c => (c.connection_id || c.id) === connectionId);
           if (freshConn) {
             const logs30 = await fetchAllSyncLogs(token, fromDate30, toDate, 30);
-            const connLogs30 = logs30.filter(l => l.connection_id === connectionId);
+            const logs30ByConnection = groupLogsByConnection(logs30);
+            const connLogs30 = logs30ByConnection.get(connectionId) || [];
             const fromDate7 = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
             const dates7 = [];
             let c7 = new Date(fromDate7);
@@ -2039,7 +2010,6 @@ app.get('/api/search/connection/:connectionId', authenticate, async (req, res) =
             );
             csvSearchStore.persistIndex(allEntries, { batchId: `fresh-${connectionId}-${Date.now()}` });
           }
-        }
       }
     } catch (err) {
       console.error('Fresh connection fetch failed:', err.message);
